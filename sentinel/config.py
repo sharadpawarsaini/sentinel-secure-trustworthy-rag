@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     llm_provider: Literal["ollama", "gemini", "openai", "mock"] = Field(
         default="ollama", alias="LLM_PROVIDER"
     )
-    llm_model: str = Field(default="llama3:8b-instruct", alias="LLM_MODEL")
+    llm_model: str = Field(default="codellama:latest", alias="LLM_MODEL")
     llm_temperature: float = Field(default=0.0, alias="LLM_TEMPERATURE")
     ollama_base_url: str = Field(default="http://localhost:11434", alias="OLLAMA_BASE_URL")
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")

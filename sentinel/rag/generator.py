@@ -91,7 +91,7 @@ class OllamaClient(BaseLLMClient):
         base_url: Optional[str] = None,
         model: Optional[str] = None,
         temperature: Optional[float] = None,
-        timeout: int = 60
+        timeout: int = 180
     ):
         self.base_url = (base_url or settings.ollama_base_url).rstrip("/")
         self._model = model or settings.llm_model
@@ -113,7 +113,8 @@ class OllamaClient(BaseLLMClient):
             "prompt": prompt,
             "stream": False,
             "options": {
-                "temperature": self.temperature
+                "temperature": self.temperature,
+                "num_predict": 300
             }
         }
         if system_prompt:
@@ -121,6 +122,18 @@ class OllamaClient(BaseLLMClient):
 
         try:
             response = requests.post(url, json=payload, timeout=self.timeout)
+            if response.status_code == 404:
+                # Attempt auto-discovery of available models from Ollama
+                tags_res = requests.get(f"{self.base_url}/api/tags", timeout=5)
+                if tags_res.ok:
+                    models = tags_res.json().get("models", [])
+                    if models:
+                        fallback_model = models[0].get("name")
+                        if fallback_model and fallback_model != self._model:
+                            payload["model"] = fallback_model
+                            self._model = fallback_model
+                            response = requests.post(url, json=payload, timeout=self.timeout)
+
             response.raise_for_status()
             data = response.json()
             return data.get("response", "").strip()

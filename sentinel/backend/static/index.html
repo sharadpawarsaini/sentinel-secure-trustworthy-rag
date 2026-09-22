@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SENTINEL — Baseline RAG Portal</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -31,8 +31,10 @@
   <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
       <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 font-bold text-xl">
-          <i class="fa-solid fa-shield-halved"></i>
+        <div class="w-10 h-10 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
         </div>
         <div>
           <span class="font-bold text-lg tracking-wider text-white">SENTINEL</span>
@@ -44,8 +46,11 @@
           <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
           <span id="status-text">Connected</span>
         </span>
+        <span id="model-badge" class="px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-sky-400">
+          LLM: Loading...
+        </span>
         <span id="chunks-badge" class="px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700">
-          <i class="fa-solid fa-database mr-1 text-sky-400"></i><span id="total-chunks-count">0</span> Chunks
+          <span id="total-chunks-count">0</span> Chunks
         </span>
       </div>
     </div>
@@ -56,11 +61,21 @@
 
     <!-- Subheader Notice -->
     <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-start space-x-3 text-sm text-slate-300">
-      <i class="fa-solid fa-circle-info text-sky-400 mt-0.5 text-base"></i>
+      <svg class="w-5 h-5 text-sky-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
       <div>
         <strong class="text-white font-medium">Experimental Baseline RAG Mode:</strong>
         This interface operates the unaugmented Baseline RAG pipeline (Document Extraction &rarr; Recursive Chunking &rarr; Dense Embedding &rarr; ChromaDB Top-K Search &rarr; Grounded Prompt Assembly &rarr; LLM Generation). Security, Trust Verification, and Adaptive Mitigation will be integrated incrementally in subsequent phases.
       </div>
+    </div>
+
+    <!-- Error Banner (if any) -->
+    <div id="error-banner" class="hidden p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-start space-x-3">
+      <svg class="w-5 h-5 text-rose-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+      <div id="error-banner-text" class="font-mono"></div>
     </div>
 
     <!-- Grid Layout: Left (Documents) & Right (Q&A) -->
@@ -72,21 +87,24 @@
         <!-- Upload Card -->
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
           <h2 class="text-base font-semibold text-white mb-4 flex items-center space-x-2">
-            <i class="fa-solid fa-file-arrow-up text-sky-400"></i>
+            <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
             <span>Ingest Knowledge Document</span>
           </h2>
           
           <form id="upload-form" class="space-y-4">
             <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-sky-500/60 transition-colors rounded-xl p-6 text-center cursor-pointer bg-slate-950/40">
               <input type="file" id="file-input" name="file" accept=".pdf,.docx,.txt" class="hidden" />
-              <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-500 mb-2"></i>
+              <svg class="w-10 h-10 text-slate-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
               <p class="text-sm font-medium text-slate-300">Click to browse or drop file</p>
               <p class="text-xs text-slate-500 mt-1">Supports PDF, DOCX, and TXT</p>
               <p id="selected-filename" class="text-xs text-sky-400 font-mono mt-3 hidden truncate"></p>
             </div>
 
             <button type="submit" id="upload-btn" disabled class="w-full py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm text-white transition-all shadow-lg shadow-sky-600/20 flex items-center justify-center space-x-2">
-              <i class="fa-solid fa-upload"></i>
               <span>Index Document</span>
             </button>
           </form>
@@ -98,11 +116,15 @@
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-sm font-semibold text-white flex items-center space-x-2">
-              <i class="fa-solid fa-layer-group text-sky-400"></i>
+              <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
               <span>Indexed Documents</span>
             </h3>
-            <button id="refresh-docs-btn" title="Refresh list" class="text-slate-400 hover:text-white transition-colors text-xs">
-              <i class="fa-solid fa-rotate-right"></i>
+            <button id="refresh-docs-btn" title="Refresh list" class="text-slate-400 hover:text-white transition-colors text-xs p-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
             </button>
           </div>
 
@@ -119,7 +141,9 @@
         <!-- Question Input Card -->
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
           <h2 class="text-base font-semibold text-white flex items-center space-x-2">
-            <i class="fa-solid fa-magnifying-glass text-sky-400"></i>
+            <svg class="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
             <span>Ask a Question</span>
           </h2>
 
@@ -129,18 +153,29 @@
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-4 pt-1">
-              <div class="flex items-center space-x-3 text-xs text-slate-400">
-                <label for="top-k-select" class="font-mono">Top-K Chunks:</label>
-                <select id="top-k-select" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:border-sky-500 outline-none font-mono">
-                  <option value="2">2</option>
-                  <option value="4" selected>4</option>
-                  <option value="6">6</option>
-                  <option value="8">8</option>
-                </select>
+              <div class="flex flex-wrap items-center gap-4 text-xs text-slate-400">
+                <div class="flex items-center space-x-2">
+                  <label for="top-k-select" class="font-mono">Top-K:</label>
+                  <select id="top-k-select" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:border-sky-500 outline-none font-mono">
+                    <option value="2">2</option>
+                    <option value="4" selected>4</option>
+                    <option value="6">6</option>
+                    <option value="8">8</option>
+                  </select>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <label for="provider-select" class="font-mono">Backend:</label>
+                  <select id="provider-select" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:border-sky-500 outline-none font-mono">
+                    <option value="ollama" selected>Ollama (Local codellama)</option>
+                    <option value="mock">Mock LLM (Fast Test)</option>
+                  </select>
+                </div>
               </div>
 
               <button type="submit" id="query-btn" class="py-2.5 px-6 rounded-xl bg-sky-600 hover:bg-sky-500 font-medium text-sm text-white transition-all shadow-lg shadow-sky-600/20 flex items-center space-x-2">
-                <i class="fa-solid fa-paper-plane"></i>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
                 <span>Ask Question</span>
               </button>
             </div>
@@ -170,7 +205,9 @@
           <div class="space-y-3 pt-2">
             <div class="flex items-center justify-between">
               <h4 class="text-sm font-semibold text-slate-300 flex items-center space-x-2">
-                <i class="fa-solid fa-quote-left text-sky-400"></i>
+                <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
                 <span>Retrieved Evidence Chunks (<span id="evidence-count">0</span>)</span>
               </h4>
               <span class="text-xs text-slate-500 font-mono">Ranked by Cosine Similarity</span>
@@ -199,9 +236,11 @@
     const documentsList = document.getElementById('documents-list');
     const refreshDocsBtn = document.getElementById('refresh-docs-btn');
     const totalChunksCount = document.getElementById('total-chunks-count');
+    const modelBadge = document.getElementById('model-badge');
     const queryForm = document.getElementById('query-form');
     const queryInput = document.getElementById('query-input');
     const topKSelect = document.getElementById('top-k-select');
+    const providerSelect = document.getElementById('provider-select');
     const queryBtn = document.getElementById('query-btn');
     const responseCard = document.getElementById('response-card');
     const answerText = document.getElementById('answer-text');
@@ -209,6 +248,8 @@
     const latencyTag = document.getElementById('latency-tag');
     const evidenceCount = document.getElementById('evidence-count');
     const evidenceContainer = document.getElementById('evidence-container');
+    const errorBanner = document.getElementById('error-banner');
+    const errorBannerText = document.getElementById('error-banner-text');
 
     // Drag & Drop handlers
     dropZone.addEventListener('click', () => fileInput.click());
@@ -250,8 +291,9 @@
       formData.append('file', file);
 
       uploadBtn.disabled = true;
-      uploadBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>Extracting & Indexing...</span>`;
+      uploadBtn.innerHTML = `<span>Extracting & Indexing...</span>`;
       uploadFeedback.classList.add('hidden');
+      errorBanner.classList.add('hidden');
 
       try {
         const res = await fetch('/api/documents/upload', {
@@ -262,7 +304,7 @@
         if (!res.ok) throw new Error(data.detail || 'Upload failed');
 
         uploadFeedback.className = 'mt-4 text-xs font-mono p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300';
-        uploadFeedback.innerHTML = `<i class="fa-solid fa-circle-check mr-1.5"></i> Indexed <strong>${data.filename}</strong> (${data.chunks_created} chunks created).`;
+        uploadFeedback.innerHTML = `Indexed <strong>${data.filename}</strong> (${data.chunks_created} chunks created).`;
         uploadFeedback.classList.remove('hidden');
 
         // Reset file input
@@ -271,11 +313,11 @@
         loadDocuments();
       } catch (err) {
         uploadFeedback.className = 'mt-4 text-xs font-mono p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300';
-        uploadFeedback.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1.5"></i> ${err.message}`;
+        uploadFeedback.textContent = err.message;
         uploadFeedback.classList.remove('hidden');
       } finally {
         uploadBtn.disabled = false;
-        uploadBtn.innerHTML = `<i class="fa-solid fa-upload"></i><span>Index Document</span>`;
+        uploadBtn.innerHTML = `<span>Index Document</span>`;
       }
     });
 
@@ -286,7 +328,8 @@
       if (!question) return;
 
       queryBtn.disabled = true;
-      queryBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>Retrieving & Generating...</span>`;
+      queryBtn.innerHTML = `<span>Retrieving & Generating...</span>`;
+      errorBanner.classList.add('hidden');
 
       try {
         const res = await fetch('/api/rag/query', {
@@ -294,7 +337,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             query: question,
-            top_k: parseInt(topKSelect.value)
+            top_k: parseInt(topKSelect.value),
+            provider: providerSelect.value
           })
         });
         const data = await res.json();
@@ -302,10 +346,17 @@
 
         renderQueryResponse(data);
       } catch (err) {
-        alert('Query failed: ' + err.message);
+        errorBannerText.textContent = 'Query Error: ' + err.message;
+        errorBanner.classList.remove('hidden');
+        errorBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } finally {
         queryBtn.disabled = false;
-        queryBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i><span>Ask Question</span>`;
+        queryBtn.innerHTML = `
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
+          <span>Ask Question</span>
+        `;
       }
     });
 
@@ -345,9 +396,15 @@
       responseCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    // Load Documents List
+    // Load Documents List & Health Stats
     async function loadDocuments() {
       try {
+        const healthRes = await fetch('/api/health');
+        if (healthRes.ok) {
+          const healthData = await healthRes.json();
+          modelBadge.textContent = `LLM: ${healthData.llm_model} (${healthData.llm_provider})`;
+        }
+
         const res = await fetch('/api/documents');
         const data = await res.json();
         totalChunksCount.textContent = data.total_chunks;
@@ -363,11 +420,15 @@
           item.className = 'flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 text-xs';
           item.innerHTML = `
             <div class="flex items-center space-x-2 truncate mr-2">
-              <i class="fa-regular fa-file-lines text-sky-400"></i>
+              <svg class="w-4 h-4 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
               <span class="text-slate-300 font-mono truncate" title="${doc}">${doc}</span>
             </div>
             <button onclick="deleteDoc('${escapeHtml(doc)}')" class="text-slate-500 hover:text-rose-400 transition-colors p-1" title="Delete document">
-              <i class="fa-regular fa-trash-can"></i>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
             </button>
           `;
           documentsList.appendChild(item);

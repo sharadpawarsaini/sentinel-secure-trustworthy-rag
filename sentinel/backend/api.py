@@ -7,7 +7,7 @@ Owned by: Sharad (Backend Architecture & Integration)
 
 from pathlib import Path
 from typing import Optional
-from fastapi import FastAPI, UploadFile, File, HTTPException, status
+from fastapi import FastAPI, UploadFile, File, HTTPException, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -54,6 +54,18 @@ generator = BaselineGenerator(llm_client=get_llm_client())
 STATIC_DIR = Path(__file__).parent / "static"
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Inline SVG favicon to prevent 404 browser noise."""
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+        '<rect width="100" height="100" rx="20" fill="#0ea5e9"/>'
+        '<path d="M50 20 L80 35 L80 60 C80 75 50 85 50 85 C50 85 20 75 20 60 L20 35 Z" fill="#0c4a6e" stroke="#ffffff" stroke-width="4"/>'
+        '</svg>'
+    )
+    return Response(content=svg, media_type="image/svg+xml")
 
 
 @app.get("/", include_in_schema=False)
@@ -175,7 +187,18 @@ async def query_rag(request: QueryRequest):
     )
 
     # 2. Baseline Generation
-    gen_result = generator.generate(query=clean_query, chunks=retrieved_chunks)
+    try:
+        active_generator = (
+            BaselineGenerator(llm_client=get_llm_client(provider=request.provider))
+            if request.provider
+            else generator
+        )
+        gen_result = active_generator.generate(query=clean_query, chunks=retrieved_chunks)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"LLM Generation failure: {e}"
+        )
 
     # Convert to API response evidence format
     evidence_list = [

@@ -18,6 +18,7 @@ class QueryRequest(BaseModel):
     query: str = Field(..., min_length=1, description="Natural language question to ask.")
     top_k: int = Field(default=4, ge=1, le=20, description="Number of evidence chunks to retrieve.")
     score_threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Minimum cosine similarity cutoff.")
+    provider: Optional[str] = Field(default=None, description="Optional LLM backend override ('ollama', 'mock').")
 
 
 class ChunkEvidence(BaseModel):
