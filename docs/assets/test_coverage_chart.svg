@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 480" width="100%" height="100%">
+  <defs>
+    <linearGradient id="chartBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020617"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="greenBar" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="900" height="480" rx="16" fill="url(#chartBg)" stroke="#334155" stroke-width="1.5"/>
+
+  <!-- Header -->
+  <text x="40" y="46" fill="#ffffff" font-family="-apple-system, sans-serif" font-size="18" font-weight="700">SENTINEL Phase 2 — Automated Test Suite Results</text>
+  <text x="40" y="70" fill="#94a3b8" font-family="monospace" font-size="12">Framework: pytest 9.1.1 | Python 3.12.13 | Platform: Windows x86_64</text>
+  
+  <!-- Master Summary Badge -->
+  <rect x="680" y="30" width="180" height="46" rx="8" fill="#064e3b" stroke="#10b981" stroke-width="1.5"/>
+  <circle cx="704" cy="53" r="8" fill="#10b981"/>
+  <text x="704" y="57" fill="#ffffff" font-family="sans-serif" font-size="10" font-weight="bold" text-anchor="middle">&#10003;</text>
+  <text x="724" y="49" fill="#a7f3d0" font-family="sans-serif" font-size="11" font-weight="600">ALL SUITES PASSED</text>
+  <text x="724" y="65" fill="#ffffff" font-family="monospace" font-size="13" font-weight="700">26 / 26 (100%)</text>
+
+  <!-- Horizontal Divider -->
+  <line x1="40" y1="92" x2="860" y2="92" stroke="#1e293b" stroke-width="1"/>
+
+  <!-- Bar 1: Document Loader -->
+  <text x="40" y="130" fill="#e2e8f0" font-family="sans-serif" font-size="13" font-weight="600">Component 2.2: Document Loader (PDF/DOCX/TXT)</text>
+  <text x="40" y="148" fill="#64748b" font-family="monospace" font-size="11">tests/unit/test_document_loader.py</text>
+  <rect x="420" y="122" width="360" height="24" rx="6" fill="#1e293b"/>
+  <rect x="420" y="122" width="360" height="24" rx="6" fill="url(#greenBar)"/>
+  <text x="795" y="139" fill="#10b981" font-family="monospace" font-size="12" font-weight="700">5 / 5 Passed</text>
+
+  <!-- Bar 2: Text Chunker -->
+  <text x="40" y="180" fill="#e2e8f0" font-family="sans-serif" font-size="13" font-weight="600">Component 2.3: Deterministic Chunker (SHA-256)</text>
+  <text x="40" y="198" fill="#64748b" font-family="monospace" font-size="11">tests/unit/test_chunker.py</text>
+  <rect x="420" y="172" width="360" height="24" rx="6" fill="#1e293b"/>
+  <rect x="420" y="172" width="360" height="24" rx="6" fill="url(#greenBar)"/>
+  <text x="795" y="189" fill="#10b981" font-family="monospace" font-size="12" font-weight="700">5 / 5 Passed</text>
+
+  <!-- Bar 3: Dense Embeddings -->
+  <text x="40" y="230" fill="#e2e8f0" font-family="sans-serif" font-size="13" font-weight="600">Component 2.4: Dense Embedder (SentenceTransformer)</text>
+  <text x="40" y="248" fill="#64748b" font-family="monospace" font-size="11">tests/unit/test_embedder.py</text>
+  <rect x="420" y="222" width="360" height="24" rx="6" fill="#1e293b"/>
+  <rect x="420" y="222" width="360" height="24" rx="6" fill="url(#greenBar)"/>
+  <text x="795" y="239" fill="#10b981" font-family="monospace" font-size="12" font-weight="700">4 / 4 Passed</text>
+
+  <!-- Bar 4: Persistent ChromaDB -->
+  <text x="40" y="280" fill="#e2e8f0" font-family="sans-serif" font-size="13" font-weight="600">Component 2.5: Persistent ChromaDB Vector Store</text>
+  <text x="40" y="298" fill="#64748b" font-family="monospace" font-size="11">tests/unit/test_vector_store.py</text>
+  <rect x="420" y="272" width="360" height="24" rx="6" fill="#1e293b"/>
+  <rect x="420" y="272" width="360" height="24" rx="6" fill="url(#greenBar)"/>
+  <text x="795" y="289" fill="#10b981" font-family="monospace" font-size="12" font-weight="700">3 / 3 Passed</text>
+
+  <!-- Bar 5: Baseline Generator -->
+  <text x="40" y="330" fill="#e2e8f0" font-family="sans-serif" font-size="13" font-weight="600">Component 2.6: Baseline Generator &amp; LLM Adapter</text>
+  <text x="40" y="348" fill="#64748b" font-family="monospace" font-size="11">tests/unit/test_generator.py</text>
+  <rect x="420" y="322" width="360" height="24" rx="6" fill="#1e293b"/>
+  <rect x="420" y="322" width="360" height="24" rx="6" fill="url(#greenBar)"/>
+  <text x="795" y="339" fill="#10b981" font-family="monospace" font-size="12" font-weight="700">4 / 4 Passed</text>
+
+  <!-- Bar 6: FastAPI REST API -->
+  <text x="40" y="380" fill="#e2e8f0" font-family="sans-serif" font-size="13" font-weight="600">Component 2.7: FastAPI REST Endpoints &amp; UI</text>
+  <text x="40" y="398" fill="#64748b" font-family="monospace" font-size="11">tests/unit/test_api.py</text>
+  <rect x="420" y="372" width="360" height="24" rx="6" fill="#1e293b"/>
+  <rect x="420" y="372" width="360" height="24" rx="6" fill="url(#greenBar)"/>
+  <text x="795" y="389" fill="#10b981" font-family="monospace" font-size="12" font-weight="700">4 / 4 Passed</text>
+
+  <!-- Bar 7: Control Group Lifecycle -->
+  <text x="40" y="430" fill="#e2e8f0" font-family="sans-serif" font-size="13" font-weight="600">Component 2.8: System A Baseline Control Lifecycle</text>
+  <text x="40" y="448" fill="#64748b" font-family="monospace" font-size="11">tests/unit/test_rag.py</text>
+  <rect x="420" y="422" width="360" height="24" rx="6" fill="#1e293b"/>
+  <rect x="420" y="422" width="360" height="24" rx="6" fill="url(#greenBar)"/>
+  <text x="795" y="439" fill="#10b981" font-family="monospace" font-size="12" font-weight="700">1 / 1 Passed</text>
+
+</svg>

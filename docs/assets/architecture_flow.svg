@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 420" width="100%" height="100%">
+  <defs>
+    <linearGradient id="blueCard" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c4a6e"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="darkBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020617"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1000" height="420" rx="16" fill="url(#darkBg)" stroke="#334155" stroke-width="1.5"/>
+
+  <text x="40" y="40" fill="#ffffff" font-family="-apple-system, sans-serif" font-size="16" font-weight="700">SENTINEL — Baseline RAG Pipeline Architecture (System A)</text>
+  <text x="40" y="60" fill="#94a3b8" font-family="monospace" font-size="11">End-to-End Data Flow: Multi-format Extraction &rarr; SHA-256 Chunker &rarr; ChromaDB HNSW &rarr; Grounded Prompt &rarr; LLM</text>
+
+  <!-- Ingestion Flow Line -->
+  <line x1="40" y1="80" x2="960" y2="80" stroke="#1e293b" stroke-width="1"/>
+
+  <!-- Step 1: Document Upload -->
+  <rect x="40" y="110" width="150" height="100" rx="12" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+  <circle cx="65" cy="135" r="12" fill="#0284c7" fill-opacity="0.3"/>
+  <text x="65" y="140" fill="#38bdf8" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">1</text>
+  <text x="85" y="140" fill="#ffffff" font-family="sans-serif" font-size="12" font-weight="700">Doc Ingestion</text>
+  <text x="55" y="165" fill="#94a3b8" font-family="monospace" font-size="10">PDF, DOCX, TXT</text>
+  <text x="55" y="182" fill="#64748b" font-family="monospace" font-size="9">DocumentLoader</text>
+  <text x="55" y="197" fill="#10b981" font-family="monospace" font-size="9">&#10003; Clean &amp; Metadata</text>
+
+  <!-- Arrow 1 -> 2 -->
+  <path d="M195 160 L225 160" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 2: Deterministic Chunker -->
+  <rect x="230" y="110" width="150" height="100" rx="12" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+  <circle cx="255" cy="135" r="12" fill="#0284c7" fill-opacity="0.3"/>
+  <text x="255" y="140" fill="#38bdf8" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">2</text>
+  <text x="275" y="140" fill="#ffffff" font-family="sans-serif" font-size="12" font-weight="700">Text Chunker</text>
+  <text x="245" y="165" fill="#94a3b8" font-family="monospace" font-size="10">Recursive 500c/50c</text>
+  <text x="245" y="182" fill="#64748b" font-family="monospace" font-size="9">TextChunker</text>
+  <text x="245" y="197" fill="#10b981" font-family="monospace" font-size="9">&#10003; SHA-256 Hashes</text>
+
+  <!-- Arrow 2 -> 3 -->
+  <path d="M385 160 L415 160" stroke="#38bdf8" stroke-width="2"/>
+
+  <!-- Step 3: Embeddings -->
+  <rect x="420" y="110" width="150" height="100" rx="12" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+  <circle cx="445" cy="135" r="12" fill="#0284c7" fill-opacity="0.3"/>
+  <text x="445" y="140" fill="#38bdf8" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">3</text>
+  <text x="465" y="140" fill="#ffffff" font-family="sans-serif" font-size="12" font-weight="700">Embedder</text>
+  <text x="435" y="165" fill="#94a3b8" font-family="monospace" font-size="10">all-MiniLM-L6-v2</text>
+  <text x="435" y="182" fill="#64748b" font-family="monospace" font-size="9">SentenceTransformer</text>
+  <text x="435" y="197" fill="#10b981" font-family="monospace" font-size="9">&#10003; 384-d Dense Vecs</text>
+
+  <!-- Arrow 3 -> 4 -->
+  <path d="M575 160 L605 160" stroke="#38bdf8" stroke-width="2"/>
+
+  <!-- Step 4: ChromaDB Store -->
+  <rect x="610" y="110" width="160" height="100" rx="12" fill="#0f172a" stroke="#a855f7" stroke-width="1.5"/>
+  <circle cx="635" cy="135" r="12" fill="#7e22ce" fill-opacity="0.3"/>
+  <text x="635" y="140" fill="#c084fc" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">4</text>
+  <text x="655" y="140" fill="#ffffff" font-family="sans-serif" font-size="12" font-weight="700">ChromaDB</text>
+  <text x="625" y="165" fill="#94a3b8" font-family="monospace" font-size="10">HNSW Cosine Space</text>
+  <text x="625" y="182" fill="#64748b" font-family="monospace" font-size="9">VectorStoreManager</text>
+  <text x="625" y="197" fill="#10b981" font-family="monospace" font-size="9">&#10003; Persistent Storage</text>
+
+  <!-- Query Pipeline (Row 2) -->
+  <!-- Step 5: User Query -->
+  <rect x="40" y="270" width="150" height="100" rx="12" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+  <circle cx="65" cy="295" r="12" fill="#0284c7" fill-opacity="0.3"/>
+  <text x="65" y="300" fill="#38bdf8" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">5</text>
+  <text x="85" y="300" fill="#ffffff" font-family="sans-serif" font-size="12" font-weight="700">User Query</text>
+  <text x="55" y="325" fill="#94a3b8" font-family="monospace" font-size="10">Natural Language</text>
+  <text x="55" y="342" fill="#64748b" font-family="monospace" font-size="9">FastAPI: /api/rag/query</text>
+  <text x="55" y="357" fill="#10b981" font-family="monospace" font-size="9">&#10003; Top-K Configurable</text>
+
+  <!-- Arrow 5 -> Vector Search -->
+  <path d="M195 320 L610 180" stroke="#38bdf8" stroke-width="2" stroke-dasharray="4,4"/>
+
+  <!-- Step 6: Evidence Retrieval -->
+  <rect x="420" y="270" width="150" height="100" rx="12" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+  <circle cx="445" cy="295" r="12" fill="#0284c7" fill-opacity="0.3"/>
+  <text x="445" y="300" fill="#38bdf8" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">6</text>
+  <text x="465" y="300" fill="#ffffff" font-family="sans-serif" font-size="12" font-weight="700">Top-K Chunks</text>
+  <text x="435" y="325" fill="#94a3b8" font-family="monospace" font-size="10">Cosine Similarity</text>
+  <text x="435" y="342" fill="#64748b" font-family="monospace" font-size="9">RetrievedChunk Models</text>
+  <text x="435" y="357" fill="#10b981" font-family="monospace" font-size="9">&#10003; Provenance Chunks</text>
+
+  <!-- Arrow 6 -> Generator -->
+  <path d="M575 320 L610 320" stroke="#38bdf8" stroke-width="2"/>
+
+  <!-- Step 7: Generator & LLM -->
+  <rect x="610" y="270" width="160" height="100" rx="12" fill="#0f172a" stroke="#10b981" stroke-width="1.5"/>
+  <circle cx="635" cy="295" r="12" fill="#064e3b" fill-opacity="0.5"/>
+  <text x="635" y="300" fill="#34d399" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">7</text>
+  <text x="655" y="300" fill="#ffffff" font-family="sans-serif" font-size="12" font-weight="700">Baseline Gen</text>
+  <text x="625" y="325" fill="#94a3b8" font-family="monospace" font-size="10">Prompt Assembly</text>
+  <text x="625" y="342" fill="#64748b" font-family="monospace" font-size="9">Ollama / Mock LLM</text>
+  <text x="625" y="357" fill="#10b981" font-family="monospace" font-size="9">&#10003; Grounded Answer</text>
+
+  <!-- Final Output Badge -->
+  <rect x="810" y="270" width="150" height="100" rx="12" fill="#0369a1" fill-opacity="0.2" stroke="#38bdf8" stroke-width="1.5"/>
+  <circle cx="835" cy="295" r="12" fill="#0284c7"/>
+  <text x="835" y="300" fill="#ffffff" font-family="sans-serif" font-size="11" font-weight="bold" text-anchor="middle">&#10003;</text>
+  <text x="855" y="300" fill="#ffffff" font-family="sans-serif" font-size="12" font-weight="700">Output Delivery</text>
+  <text x="825" y="325" fill="#e0f2fe" font-family="monospace" font-size="10">Web UI / REST API</text>
+  <text x="825" y="342" fill="#7dd3fc" font-family="monospace" font-size="9">Answer + Provenance</text>
+  <text x="825" y="357" fill="#10b981" font-family="monospace" font-size="9">&#10003; Auditable Citations</text>
+
+  <path d="M775 320 L805 320" stroke="#38bdf8" stroke-width="2"/>
+
+</svg>
