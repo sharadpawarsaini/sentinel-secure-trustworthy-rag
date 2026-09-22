@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SENTINEL — Baseline RAG Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              900: '#0c4a6e',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased selection:bg-sky-500 selection:text-white">
+
+  <!-- Navigation Bar -->
+  <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 font-bold text-xl">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <div>
+          <span class="font-bold text-lg tracking-wider text-white">SENTINEL</span>
+          <span class="text-xs ml-2 px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono border border-sky-500/30">Phase 2: Baseline RAG</span>
+        </div>
+      </div>
+      <div class="flex items-center space-x-4 text-xs font-mono text-slate-400">
+        <span id="status-badge" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="status-text">Connected</span>
+        </span>
+        <span id="chunks-badge" class="px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700">
+          <i class="fa-solid fa-database mr-1 text-sky-400"></i><span id="total-chunks-count">0</span> Chunks
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+    <!-- Subheader Notice -->
+    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-start space-x-3 text-sm text-slate-300">
+      <i class="fa-solid fa-circle-info text-sky-400 mt-0.5 text-base"></i>
+      <div>
+        <strong class="text-white font-medium">Experimental Baseline RAG Mode:</strong>
+        This interface operates the unaugmented Baseline RAG pipeline (Document Extraction &rarr; Recursive Chunking &rarr; Dense Embedding &rarr; ChromaDB Top-K Search &rarr; Grounded Prompt Assembly &rarr; LLM Generation). Security, Trust Verification, and Adaptive Mitigation will be integrated incrementally in subsequent phases.
+      </div>
+    </div>
+
+    <!-- Grid Layout: Left (Documents) & Right (Q&A) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+      <!-- LEFT COLUMN: Document Ingestion (4 cols) -->
+      <div class="lg:col-span-4 space-y-6">
+        
+        <!-- Upload Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <h2 class="text-base font-semibold text-white mb-4 flex items-center space-x-2">
+            <i class="fa-solid fa-file-arrow-up text-sky-400"></i>
+            <span>Ingest Knowledge Document</span>
+          </h2>
+          
+          <form id="upload-form" class="space-y-4">
+            <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-sky-500/60 transition-colors rounded-xl p-6 text-center cursor-pointer bg-slate-950/40">
+              <input type="file" id="file-input" name="file" accept=".pdf,.docx,.txt" class="hidden" />
+              <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-500 mb-2"></i>
+              <p class="text-sm font-medium text-slate-300">Click to browse or drop file</p>
+              <p class="text-xs text-slate-500 mt-1">Supports PDF, DOCX, and TXT</p>
+              <p id="selected-filename" class="text-xs text-sky-400 font-mono mt-3 hidden truncate"></p>
+            </div>
+
+            <button type="submit" id="upload-btn" disabled class="w-full py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm text-white transition-all shadow-lg shadow-sky-600/20 flex items-center justify-center space-x-2">
+              <i class="fa-solid fa-upload"></i>
+              <span>Index Document</span>
+            </button>
+          </form>
+
+          <div id="upload-feedback" class="mt-4 text-xs font-mono hidden p-3 rounded-lg"></div>
+        </div>
+
+        <!-- Indexed Documents List Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-white flex items-center space-x-2">
+              <i class="fa-solid fa-layer-group text-sky-400"></i>
+              <span>Indexed Documents</span>
+            </h3>
+            <button id="refresh-docs-btn" title="Refresh list" class="text-slate-400 hover:text-white transition-colors text-xs">
+              <i class="fa-solid fa-rotate-right"></i>
+            </button>
+          </div>
+
+          <div id="documents-list" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+            <p class="text-xs text-slate-500 italic">No documents indexed yet.</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN: Query & Evidence Inspection (8 cols) -->
+      <div class="lg:col-span-8 space-y-6">
+
+        <!-- Question Input Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <h2 class="text-base font-semibold text-white flex items-center space-x-2">
+            <i class="fa-solid fa-magnifying-glass text-sky-400"></i>
+            <span>Ask a Question</span>
+          </h2>
+
+          <form id="query-form" class="space-y-4">
+            <div>
+              <textarea id="query-input" rows="3" required placeholder="e.g. Who is the company CEO and what are their responsibilities?" class="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl p-3 text-sm text-white placeholder-slate-500 transition-all outline-none resize-none"></textarea>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-4 pt-1">
+              <div class="flex items-center space-x-3 text-xs text-slate-400">
+                <label for="top-k-select" class="font-mono">Top-K Chunks:</label>
+                <select id="top-k-select" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:border-sky-500 outline-none font-mono">
+                  <option value="2">2</option>
+                  <option value="4" selected>4</option>
+                  <option value="6">6</option>
+                  <option value="8">8</option>
+                </select>
+              </div>
+
+              <button type="submit" id="query-btn" class="py-2.5 px-6 rounded-xl bg-sky-600 hover:bg-sky-500 font-medium text-sm text-white transition-all shadow-lg shadow-sky-600/20 flex items-center space-x-2">
+                <i class="fa-solid fa-paper-plane"></i>
+                <span>Ask Question</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Query Response Card -->
+        <div id="response-card" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6 hidden">
+          
+          <!-- Answer Header -->
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-4">
+            <div class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+              <h3 class="text-base font-semibold text-white">Generated Answer</h3>
+            </div>
+            <div class="flex items-center space-x-2 text-xs font-mono text-slate-400">
+              <span id="model-tag" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">Model: -</span>
+              <span id="latency-tag" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">Latency: - ms</span>
+            </div>
+          </div>
+
+          <!-- Answer Body -->
+          <div id="answer-text" class="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap font-sans bg-slate-950/60 p-4 rounded-xl border border-slate-800/80">
+          </div>
+
+          <!-- Retrieved Evidence Section -->
+          <div class="space-y-3 pt-2">
+            <div class="flex items-center justify-between">
+              <h4 class="text-sm font-semibold text-slate-300 flex items-center space-x-2">
+                <i class="fa-solid fa-quote-left text-sky-400"></i>
+                <span>Retrieved Evidence Chunks (<span id="evidence-count">0</span>)</span>
+              </h4>
+              <span class="text-xs text-slate-500 font-mono">Ranked by Cosine Similarity</span>
+            </div>
+
+            <div id="evidence-container" class="space-y-3">
+              <!-- Evidence cards dynamically injected here -->
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    const fileInput = document.getElementById('file-input');
+    const dropZone = document.getElementById('drop-zone');
+    const selectedFilename = document.getElementById('selected-filename');
+    const uploadBtn = document.getElementById('upload-btn');
+    const uploadForm = document.getElementById('upload-form');
+    const uploadFeedback = document.getElementById('upload-feedback');
+    const documentsList = document.getElementById('documents-list');
+    const refreshDocsBtn = document.getElementById('refresh-docs-btn');
+    const totalChunksCount = document.getElementById('total-chunks-count');
+    const queryForm = document.getElementById('query-form');
+    const queryInput = document.getElementById('query-input');
+    const topKSelect = document.getElementById('top-k-select');
+    const queryBtn = document.getElementById('query-btn');
+    const responseCard = document.getElementById('response-card');
+    const answerText = document.getElementById('answer-text');
+    const modelTag = document.getElementById('model-tag');
+    const latencyTag = document.getElementById('latency-tag');
+    const evidenceCount = document.getElementById('evidence-count');
+    const evidenceContainer = document.getElementById('evidence-container');
+
+    // Drag & Drop handlers
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        selectedFilename.textContent = fileInput.files[0].name;
+        selectedFilename.classList.remove('hidden');
+        uploadBtn.disabled = false;
+      }
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('border-sky-500');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('border-sky-500');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('border-sky-500');
+      if (e.dataTransfer.files.length > 0) {
+        fileInput.files = e.dataTransfer.files;
+        selectedFilename.textContent = fileInput.files[0].name;
+        selectedFilename.classList.remove('hidden');
+        uploadBtn.disabled = false;
+      }
+    });
+
+    // Upload Form Submit
+    uploadForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!fileInput.files.length) return;
+
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+
+      uploadBtn.disabled = true;
+      uploadBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>Extracting & Indexing...</span>`;
+      uploadFeedback.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/documents/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Upload failed');
+
+        uploadFeedback.className = 'mt-4 text-xs font-mono p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300';
+        uploadFeedback.innerHTML = `<i class="fa-solid fa-circle-check mr-1.5"></i> Indexed <strong>${data.filename}</strong> (${data.chunks_created} chunks created).`;
+        uploadFeedback.classList.remove('hidden');
+
+        // Reset file input
+        fileInput.value = '';
+        selectedFilename.classList.add('hidden');
+        loadDocuments();
+      } catch (err) {
+        uploadFeedback.className = 'mt-4 text-xs font-mono p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300';
+        uploadFeedback.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1.5"></i> ${err.message}`;
+        uploadFeedback.classList.remove('hidden');
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = `<i class="fa-solid fa-upload"></i><span>Index Document</span>`;
+      }
+    });
+
+    // Query Form Submit
+    queryForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const question = queryInput.value.trim();
+      if (!question) return;
+
+      queryBtn.disabled = true;
+      queryBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>Retrieving & Generating...</span>`;
+
+      try {
+        const res = await fetch('/api/rag/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: question,
+            top_k: parseInt(topKSelect.value)
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Query failed');
+
+        renderQueryResponse(data);
+      } catch (err) {
+        alert('Query failed: ' + err.message);
+      } finally {
+        queryBtn.disabled = false;
+        queryBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i><span>Ask Question</span>`;
+      }
+    });
+
+    function renderQueryResponse(data) {
+      answerText.textContent = data.answer;
+      modelTag.textContent = `Model: ${data.model} (${data.provider})`;
+      latencyTag.textContent = `Latency: ${data.latency_ms} ms`;
+      evidenceCount.textContent = data.retrieved_chunks.length;
+
+      evidenceContainer.innerHTML = '';
+      if (data.retrieved_chunks.length === 0) {
+        evidenceContainer.innerHTML = `<p class="text-xs text-slate-500 italic p-3 bg-slate-950/40 rounded-lg border border-slate-800">No evidence chunks retrieved.</p>`;
+      } else {
+        data.retrieved_chunks.forEach((chunk, i) => {
+          const simPct = Math.round(chunk.similarity_score * 100);
+          const card = document.createElement('div');
+          card.className = 'p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2 hover:border-slate-700 transition-colors';
+          card.innerHTML = `
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center space-x-2 font-mono">
+                <span class="px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/30 font-semibold">#${i + 1} Chunk</span>
+                <span class="text-slate-300 truncate max-w-[200px]" title="${chunk.source_filename}">${chunk.source_filename}</span>
+                <span class="text-slate-500">[Index: ${chunk.chunk_index}]</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-slate-400 font-mono text-[11px]">Similarity:</span>
+                <span class="px-2 py-0.5 rounded font-mono font-bold ${simPct >= 70 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}">${chunk.similarity_score}</span>
+              </div>
+            </div>
+            <p class="text-xs text-slate-300 font-mono leading-relaxed bg-slate-900/90 p-2.5 rounded-lg border border-slate-800/80">${escapeHtml(chunk.text)}</p>
+          `;
+          evidenceContainer.appendChild(card);
+        });
+      }
+
+      responseCard.classList.remove('hidden');
+      responseCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Load Documents List
+    async function loadDocuments() {
+      try {
+        const res = await fetch('/api/documents');
+        const data = await res.json();
+        totalChunksCount.textContent = data.total_chunks;
+
+        documentsList.innerHTML = '';
+        if (data.unique_documents.length === 0) {
+          documentsList.innerHTML = `<p class="text-xs text-slate-500 italic">No documents indexed yet.</p>`;
+          return;
+        }
+
+        data.unique_documents.forEach(doc => {
+          const item = document.createElement('div');
+          item.className = 'flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 text-xs';
+          item.innerHTML = `
+            <div class="flex items-center space-x-2 truncate mr-2">
+              <i class="fa-regular fa-file-lines text-sky-400"></i>
+              <span class="text-slate-300 font-mono truncate" title="${doc}">${doc}</span>
+            </div>
+            <button onclick="deleteDoc('${escapeHtml(doc)}')" class="text-slate-500 hover:text-rose-400 transition-colors p-1" title="Delete document">
+              <i class="fa-regular fa-trash-can"></i>
+            </button>
+          `;
+          documentsList.appendChild(item);
+        });
+      } catch (err) {
+        console.error('Failed to load documents:', err);
+      }
+    }
+
+    window.deleteDoc = async function(docName) {
+      if (!confirm(`Are you sure you want to delete ${docName} from the vector store?`)) return;
+      try {
+        const res = await fetch(`/api/documents/${encodeURIComponent(docName)}`, { method: 'DELETE' });
+        if (res.ok) {
+          loadDocuments();
+        }
+      } catch (err) {
+        alert('Delete failed: ' + err.message);
+      }
+    };
+
+    refreshDocsBtn.addEventListener('click', loadDocuments);
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Initial load
+    loadDocuments();
+  </script>
+</body>
+</html>
