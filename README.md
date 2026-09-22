@@ -68,6 +68,9 @@ Every component is independently tested and verified through automated test suit
   <img src="docs/assets/test_coverage_chart.svg" alt="SENTINEL Test Suite Results" width="100%" />
 </p>
 
+> 📄 **Official PDF Audit Report Available:** The formal academic testing document with charts, telemetry breakdown, and endpoint performance profiles is available in PDF format:  
+> 🔗 **[`docs/reports/Phase_2_Testing_Report.pdf`](docs/reports/Phase_2_Testing_Report.pdf)** *(Generated via ReportLab with Matplotlib visual analytics).*
+
 ### Detailed Component Verification Matrix
 
 | Component | Test File | Verified Capabilities | Status |
