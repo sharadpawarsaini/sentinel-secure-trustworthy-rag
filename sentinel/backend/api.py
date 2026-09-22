@@ -17,13 +17,17 @@ from sentinel.rag.document_loader import DocumentLoader
 from sentinel.rag.chunker import TextChunker
 from sentinel.rag.vector_store import VectorStoreManager
 from sentinel.rag.generator import BaselineGenerator, get_llm_client
+from sentinel.backend.audit import activity_logger
 from sentinel.backend.schemas import (
     DocumentUploadResponse,
     QueryRequest,
     QueryResponse,
     ChunkEvidence,
     DocumentListResponse,
-    HealthResponse
+    HealthResponse,
+    AdminStatsResponse,
+    AdminChunkItem,
+    AdminChunksResponse
 )
 
 # Initialize FastAPI application
@@ -75,6 +79,15 @@ async def serve_index():
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="Index HTML not found.")
     return FileResponse(str(index_path))
+
+
+@app.get("/admin", include_in_schema=False)
+async def serve_admin():
+    """Serve the Admin Observability Console."""
+    admin_path = STATIC_DIR / "admin.html"
+    if not admin_path.exists():
+        raise HTTPException(status_code=404, detail="Admin HTML not found.")
+    return FileResponse(str(admin_path))
 
 
 @app.get("/api/health", response_model=HealthResponse, tags=["System"])
@@ -130,6 +143,14 @@ async def upload_document(file: UploadFile = File(...)):
         vector_store.add_chunks(chunks)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to store document in vector database: {e}")
+
+    # Telemetry logging
+    activity_logger.log_ingestion(
+        filename=loaded_doc.source_filename,
+        file_type=loaded_doc.file_type,
+        character_count=loaded_doc.character_count,
+        chunks_created=len(chunks)
+    )
 
     return DocumentUploadResponse(
         filename=loaded_doc.source_filename,
@@ -213,6 +234,20 @@ async def query_rag(request: QueryRequest):
         for c in retrieved_chunks
     ]
 
+    # Telemetry logging for Admin Observability
+    top_sim = retrieved_chunks[0].similarity_score if retrieved_chunks else 0.0
+    activity_logger.log_query(
+        query=clean_query,
+        top_k=request.top_k,
+        provider=gen_result.provider,
+        model=gen_result.model,
+        latency_ms=gen_result.latency_ms,
+        chunks_count=len(retrieved_chunks),
+        top_similarity_score=top_sim,
+        answer=gen_result.answer,
+        retrieved_chunks=retrieved_chunks
+    )
+
     return QueryResponse(
         query=gen_result.query,
         answer=gen_result.answer,
@@ -222,3 +257,86 @@ async def query_rag(request: QueryRequest):
         latency_ms=gen_result.latency_ms,
         pipeline_mode="BASELINE_RAG"
     )
+
+
+# --- Admin Observability Endpoints ---
+
+@app.get("/api/admin/stats", response_model=AdminStatsResponse, tags=["Admin"])
+async def get_admin_stats():
+    """Retrieve aggregate telemetry and operational health metrics."""
+    vs_stats = vector_store.get_collection_stats()
+    metrics = activity_logger.get_metrics_summary()
+
+    return AdminStatsResponse(
+        status="operational",
+        pipeline_phase="Phase 2: Baseline RAG",
+        system_version="0.1.0",
+        active_llm_provider=settings.llm_provider,
+        active_llm_model=generator.client.model_name,
+        embedding_model=settings.embedding_model_name,
+        embedding_dimension=vector_store.embedder.dimension,
+        vector_store_path=str(settings.vector_store_dir),
+        vector_store_collection=vector_store.collection_name,
+        total_chunks_indexed=vs_stats["total_chunks"],
+        total_unique_documents=vs_stats["unique_documents_count"],
+        total_queries_logged=metrics["total_queries_logged"],
+        average_latency_ms=metrics["average_latency_ms"],
+        min_latency_ms=metrics["min_latency_ms"],
+        max_latency_ms=metrics["max_latency_ms"]
+    )
+
+
+@app.get("/api/admin/queries", tags=["Admin"])
+async def get_admin_queries(limit: int = 100):
+    """Retrieve recent query audit logs."""
+    return activity_logger.get_queries(limit=limit)
+
+
+@app.get("/api/admin/chunks", response_model=AdminChunksResponse, tags=["Admin"])
+async def get_admin_chunks(source_filename: Optional[str] = None):
+    """Inspect stored chunks directly from the ChromaDB vector index."""
+    total_count = vector_store.collection.count()
+    if total_count == 0:
+        return AdminChunksResponse(total_chunks=0, filtered_count=0, chunks=[])
+
+    where_filter = {"source_filename": source_filename} if source_filename else None
+    results = vector_store.collection.get(
+        where=where_filter,
+        include=["documents", "metadatas"]
+    )
+
+    ids = results.get("ids", [])
+    docs = results.get("documents", [])
+    metas = results.get("metadatas", [])
+
+    chunk_items = []
+    for chunk_id, doc_text, meta in zip(ids, docs, metas):
+        meta_dict = meta or {}
+        chunk_items.append(
+            AdminChunkItem(
+                chunk_id=chunk_id,
+                source_filename=str(meta_dict.get("source_filename", "unknown")),
+                chunk_index=int(meta_dict.get("chunk_index", 0)),
+                character_count=int(meta_dict.get("character_count", len(doc_text))),
+                start_char=int(meta_dict.get("start_char", 0)),
+                end_char=int(meta_dict.get("end_char", len(doc_text))),
+                text=doc_text,
+                metadata=meta_dict
+            )
+        )
+
+    # Sort chunks by source_filename then chunk_index
+    chunk_items.sort(key=lambda x: (x.source_filename, x.chunk_index))
+
+    return AdminChunksResponse(
+        total_chunks=total_count,
+        filtered_count=len(chunk_items),
+        chunks=chunk_items
+    )
+
+
+@app.post("/api/admin/clear-logs", tags=["Admin"])
+async def clear_admin_logs():
+    """Reset the query audit trail buffer."""
+    activity_logger.clear_logs()
+    return {"status": "cleared"}

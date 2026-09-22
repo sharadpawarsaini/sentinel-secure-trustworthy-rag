@@ -42,6 +42,24 @@ Below is an authentic visual preview of the operational SENTINEL web portal in a
 
 ---
 
+## 🛠️ Executive Admin Observability Console (Phase 2)
+
+SENTINEL features a specialized, high-security **Admin Observability Console** accessible at `/admin`. Exclusively tailored for Phase 2 baseline telemetry, the console provides system administrators and researchers with end-to-end transparency over baseline RAG operations:
+
+<p align="center">
+  <img src="docs/assets/admin_panel_preview.svg" alt="SENTINEL Executive Admin Observability Console" width="100%" />
+</p>
+
+### Admin Observability Capabilities
+- **Real-Time KPI Dashboard**: Live tracking of total indexed chunks across ChromaDB, active generation engines (`codellama:latest` / `mock-baseline-llm`), unique knowledge documents, and roundtrip retrieval-to-synthesis latencies.
+- **Query Transaction Audit Trail**: Thread-safe circular telemetry buffer capturing timestamped query prompts, top-$K$ parameters, maximum cosine similarity scores, execution latencies, and HTTP response codes.
+- **Deep Query Inspection Modal**: Full modal inspector detailing the exact prompt assembly and all retrieved provenance chunks cited during synthesis.
+- **Corpus & Chunk Explorer**: Direct vector collection browser allowing document-level filtering, chunk coordinate viewing, and raw text chunk inspection directly from the persistent HNSW index.
+- **System Health & Hardware Diagnostics**: Live monitoring of the FastAPI runtime, embedding dimension validation (384-d), vector store path verification, and real-time inference model health checks.
+- **Audit Telemetry Log Export**: One-click JSON export of all logged query transactions for archival and downstream research analysis.
+
+---
+
 ## 📊 Automated Test Suite Results (100% Passing)
 
 Every component is independently tested and verified through automated test suites in pytest. All 26 unit and integration tests are passing with zero failures:
@@ -284,6 +302,7 @@ uv pip install -r requirements.txt
 
 ### 3. Open in Browser
 - **Web Portal:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- **Admin Console:** [http://127.0.0.1:8000/admin](http://127.0.0.1:8000/admin)
 - **Interactive Swagger Docs:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
 ### 4. Run the Full Test Suite

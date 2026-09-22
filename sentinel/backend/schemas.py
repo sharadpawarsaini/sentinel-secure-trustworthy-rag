@@ -58,3 +58,43 @@ class HealthResponse(BaseModel):
     llm_model: str
     embedding_model: str
     total_chunks: int
+
+
+# --- Admin Observability Schemas ---
+
+class AdminStatsResponse(BaseModel):
+    """Aggregated metrics and system diagnostics for Admin Console."""
+    status: str = "operational"
+    pipeline_phase: str = "Phase 2: Baseline RAG"
+    system_version: str = "0.1.0"
+    active_llm_provider: str
+    active_llm_model: str
+    embedding_model: str
+    embedding_dimension: int
+    vector_store_path: str
+    vector_store_collection: str
+    total_chunks_indexed: int
+    total_unique_documents: int
+    total_queries_logged: int
+    average_latency_ms: float
+    min_latency_ms: float
+    max_latency_ms: float
+
+
+class AdminChunkItem(BaseModel):
+    """Chunk record representation in the Admin Explorer."""
+    chunk_id: str
+    source_filename: str
+    chunk_index: int
+    character_count: int
+    start_char: int
+    end_char: int
+    text: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AdminChunksResponse(BaseModel):
+    """Paginated or filtered chunk list response."""
+    total_chunks: int
+    filtered_count: int
+    chunks: List[AdminChunkItem]

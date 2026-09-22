@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SENTINEL — Admin Observability Console</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              500: '#10b981',
+              600: '#059669',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#030712] text-slate-100 min-h-screen font-sans antialiased selection:bg-sky-500 selection:text-white">
+
+  <!-- Top Global Header -->
+  <header class="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Brand & Phase Tag -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 font-bold shadow-lg shadow-sky-500/5">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-base tracking-wider text-white">SENTINEL</span>
+            <span class="text-[10px] font-mono uppercase tracking-widest px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Admin Console</span>
+          </div>
+          <p class="text-[11px] text-slate-400 font-mono">Telemetry, Activity Auditing &amp; Knowledge Base Inspector</p>
+        </div>
+      </div>
+
+      <!-- Action Nav & Status -->
+      <div class="flex items-center space-x-4">
+        <div class="hidden sm:flex items-center space-x-2 text-xs font-mono text-slate-400 bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-800">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span class="text-slate-300">Phase 2: Baseline RAG Telemetry</span>
+        </div>
+
+        <button id="refresh-all-btn" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs text-slate-300 border border-slate-800 transition-colors">
+          <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span>Refresh</span>
+        </button>
+
+        <a href="/" class="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-xs font-medium text-white transition-all shadow-md shadow-sky-600/20">
+          <span>User Portal</span>
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </a>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+    <!-- KPI Summary Grid (4 Cards) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      
+      <!-- Card 1: Vector Store Status -->
+      <div class="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 shadow-xl relative overflow-hidden group hover:border-slate-700 transition-colors">
+        <div class="flex items-center justify-between text-xs font-mono text-slate-400 mb-2">
+          <span>VECTOR CORPUS</span>
+          <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <span id="stat-total-chunks" class="text-3xl font-bold font-mono text-white">0</span>
+          <span class="text-xs text-slate-400">chunks indexed</span>
+        </div>
+        <div class="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 font-mono">
+          <span>Unique Docs: <strong id="stat-total-docs" class="text-sky-400">0</strong></span>
+          <span class="text-slate-500">HNSW Cosine</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Query Throughput -->
+      <div class="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 shadow-xl relative overflow-hidden group hover:border-slate-700 transition-colors">
+        <div class="flex items-center justify-between text-xs font-mono text-slate-400 mb-2">
+          <span>QUERIES PROCESSED</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <span id="stat-total-queries" class="text-3xl font-bold font-mono text-white">0</span>
+          <span class="text-xs text-slate-400">total transactions</span>
+        </div>
+        <div class="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 font-mono">
+          <span>Buffer: <strong id="stat-buffer-count" class="text-emerald-400">0</strong> logs</span>
+          <span class="text-slate-500">Live Stream</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Retrieval Latency -->
+      <div class="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 shadow-xl relative overflow-hidden group hover:border-slate-700 transition-colors">
+        <div class="flex items-center justify-between text-xs font-mono text-slate-400 mb-2">
+          <span>AVG ROUNDTRIP LATENCY</span>
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <span id="stat-avg-latency" class="text-3xl font-bold font-mono text-white">0.0</span>
+          <span class="text-xs text-slate-400">ms / query</span>
+        </div>
+        <div class="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 font-mono">
+          <span>Range: <strong id="stat-latency-range" class="text-amber-400">0 - 0 ms</strong></span>
+          <span class="text-slate-500">Embedding + Gen</span>
+        </div>
+      </div>
+
+      <!-- Card 4: Inference Engines -->
+      <div class="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 shadow-xl relative overflow-hidden group hover:border-slate-700 transition-colors">
+        <div class="flex items-center justify-between text-xs font-mono text-slate-400 mb-2">
+          <span>INFERENCE ENGINES</span>
+          <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+        </div>
+        <div class="space-y-1">
+          <div class="text-sm font-semibold text-white font-mono truncate" id="stat-llm-model">codellama:latest</div>
+          <div class="text-xs text-purple-400 font-mono" id="stat-embed-model">all-MiniLM-L6-v2 (384-d)</div>
+        </div>
+        <div class="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 font-mono">
+          <span>Backend: <strong id="stat-backend-name" class="text-slate-300">ollama</strong></span>
+          <span class="text-emerald-400">&#10003; Local GPU/CPU</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="border-b border-slate-800 flex space-x-6 text-sm font-medium">
+      <button id="tab-btn-queries" class="tab-btn pb-3 px-1 border-b-2 border-sky-400 text-sky-400 flex items-center space-x-2 font-mono text-xs">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>QUERY AUDIT TRAIL</span>
+      </button>
+
+      <button id="tab-btn-chunks" class="tab-btn pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 font-mono text-xs">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+        <span>CORPUS &amp; CHUNK EXPLORER</span>
+      </button>
+
+      <button id="tab-btn-system" class="tab-btn pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 font-mono text-xs">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <span>SYSTEM &amp; ENGINE CONFIG</span>
+      </button>
+    </div>
+
+    <!-- TAB 1: QUERY AUDIT TRAIL CONTENT -->
+    <div id="tab-content-queries" class="space-y-6">
+      
+      <!-- Toolbar -->
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center space-x-3">
+          <span class="text-xs font-mono text-slate-400">Live query transaction feed:</span>
+          <span id="query-table-count" class="text-xs font-mono px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/30">0 Records</span>
+        </div>
+        <div class="flex items-center space-x-3">
+          <button id="clear-logs-btn" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-rose-500/10 hover:text-rose-400 text-xs font-mono text-slate-400 border border-slate-800 hover:border-rose-500/30 transition-colors">
+            Clear Logs
+          </button>
+        </div>
+      </div>
+
+      <!-- Query Table Card -->
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-mono">
+            <thead class="bg-slate-950/80 text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-4">#ID</th>
+                <th class="py-3 px-4">TIMESTAMP</th>
+                <th class="py-3 px-4">QUERY</th>
+                <th class="py-3 px-4">BACKEND</th>
+                <th class="py-3 px-4">TOP-K</th>
+                <th class="py-3 px-4">CHUNKS</th>
+                <th class="py-3 px-4">TOP SIM</th>
+                <th class="py-3 px-4">LATENCY</th>
+                <th class="py-3 px-4 text-right">ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="query-log-body" class="divide-y divide-slate-800/60 text-slate-300">
+              <tr>
+                <td colspan="9" class="py-8 text-center text-slate-500 italic">No query activity recorded yet. Run a query in the user portal to see live telemetry.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TAB 2: CORPUS & CHUNK EXPLORER -->
+    <div id="tab-content-chunks" class="space-y-6 hidden">
+      
+      <!-- Ingested Documents List -->
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-white font-mono">INDEXED KNOWLEDGE DOCUMENTS</h3>
+            <p class="text-xs text-slate-400">Master corpus documents active in the ChromaDB collection</p>
+          </div>
+          <button id="refresh-corpus-btn" class="text-xs font-mono text-sky-400 hover:text-sky-300 p-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30">
+            Refresh Corpus
+          </button>
+        </div>
+
+        <div id="corpus-docs-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+          <!-- Document cards dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Chunk Inspector Section -->
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+          <div>
+            <h3 class="text-sm font-semibold text-white font-mono">CHUNK LEVEL VECTOR EXPLORER</h3>
+            <p class="text-xs text-slate-400">Inspect verbatim text, character boundaries, and SHA-256 chunk IDs</p>
+          </div>
+          <div class="flex items-center space-x-3 text-xs font-mono">
+            <label for="filter-doc-select" class="text-slate-400">Filter by Document:</label>
+            <select id="filter-doc-select" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:border-sky-500 outline-none">
+              <option value="">All Documents</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="chunks-cards-container" class="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+          <p class="text-xs text-slate-500 italic py-6 text-center">Loading stored vector chunks...</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TAB 3: SYSTEM DIAGNOSTICS & CONFIG -->
+    <div id="tab-content-system" class="space-y-6 hidden">
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Pipeline Specifications -->
+        <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <h3 class="text-sm font-semibold text-white font-mono border-b border-slate-800 pb-3 flex items-center space-x-2">
+            <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span>RAG PIPELINE SPECIFICATIONS</span>
+          </h3>
+
+          <div class="space-y-3 text-xs font-mono">
+            <div class="flex justify-between py-1.5 border-b border-slate-800/50">
+              <span class="text-slate-400">Pipeline State:</span>
+              <span class="text-emerald-400 font-semibold">Phase 2: Baseline RAG (Mode A)</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-slate-800/50">
+              <span class="text-slate-400">Security Guardrails:</span>
+              <span class="text-amber-400">Deferred to Phase 3</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-slate-800/50">
+              <span class="text-slate-400">Trust &amp; NLI Verification:</span>
+              <span class="text-amber-400">Deferred to Phase 4</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-slate-800/50">
+              <span class="text-slate-400">Adaptive Mitigation:</span>
+              <span class="text-amber-400">Deferred to Phase 5</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-slate-800/50">
+              <span class="text-slate-400">Default Chunk Size:</span>
+              <span class="text-slate-200">500 characters</span>
+            </div>
+            <div class="flex justify-between py-1.5">
+              <span class="text-slate-400">Default Chunk Overlap:</span>
+              <span class="text-slate-200">50 characters</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Engine & Storage Diagnostics -->
+        <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <h3 class="text-sm font-semibold text-white font-mono border-b border-slate-800 pb-3 flex items-center space-x-2">
+            <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+            </svg>
+            <span>ENGINE &amp; VECTOR STORAGE DIAGNOSTICS</span>
+          </h3>
+
+          <div class="space-y-3 text-xs font-mono">
+            <div class="flex justify-between py-1.5 border-b border-slate-800/50">
+              <span class="text-slate-400">Vector Store Backend:</span>
+              <span class="text-slate-200 font-semibold">ChromaDB Persistent Client</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-slate-800/50">
+              <span class="text-slate-400">Distance Metric:</span>
+              <span class="text-purple-400">HNSW Cosine Space</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-slate-800/50">
+              <span class="text-slate-400">Embedding Model:</span>
+              <span class="text-slate-200">all-MiniLM-L6-v2 (384-d)</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-slate-800/50">
+              <span class="text-slate-400">LLM Generation Provider:</span>
+              <span class="text-sky-400" id="diag-llm-provider">ollama</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b border-slate-800/50">
+              <span class="text-slate-400">Active LLM Model:</span>
+              <span class="text-sky-400" id="diag-llm-model">codellama:latest</span>
+            </div>
+            <div class="flex justify-between py-1.5">
+              <span class="text-slate-400">Storage Directory:</span>
+              <span class="text-slate-400 truncate max-w-[200px]" id="diag-storage-path">./data/vectorstore</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Query Inspection Modal Drawer -->
+  <div id="query-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+          <h4 class="text-sm font-semibold text-white font-mono">QUERY TRANSACTION INSPECTOR</h4>
+        </div>
+        <button id="close-modal-btn" class="text-slate-400 hover:text-white p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <div class="p-6 overflow-y-auto space-y-6 text-xs font-mono">
+        <div>
+          <span class="text-slate-400 block mb-1 text-[11px]">QUERY PROMPT:</span>
+          <div id="modal-query" class="p-3 bg-slate-950 rounded-xl border border-slate-800 text-slate-200 text-sm"></div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+            <span class="text-slate-500 block text-[10px]">BACKEND</span>
+            <span id="modal-backend" class="font-bold text-sky-400"></span>
+          </div>
+          <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+            <span class="text-slate-500 block text-[10px]">TOP-K</span>
+            <span id="modal-topk" class="font-bold text-slate-200"></span>
+          </div>
+          <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+            <span class="text-slate-500 block text-[10px]">ROUNDTRIP LATENCY</span>
+            <span id="modal-latency" class="font-bold text-amber-400"></span>
+          </div>
+          <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+            <span class="text-slate-500 block text-[10px]">MAX SIMILARITY</span>
+            <span id="modal-sim" class="font-bold text-emerald-400"></span>
+          </div>
+        </div>
+
+        <div>
+          <span class="text-slate-400 block mb-1 text-[11px]">GENERATED RESPONSE:</span>
+          <div id="modal-answer" class="p-4 bg-slate-950 rounded-xl border border-slate-800 text-slate-300 font-sans text-xs leading-relaxed whitespace-pre-wrap"></div>
+        </div>
+
+        <div>
+          <span class="text-slate-400 block mb-2 text-[11px]">EVIDENCE CHUNKS RETRIEVED:</span>
+          <div id="modal-chunks" class="space-y-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let activeQueries = [];
+    let allChunks = [];
+
+    // Tab Switching
+    const tabBtnQueries = document.getElementById('tab-btn-queries');
+    const tabBtnChunks = document.getElementById('tab-btn-chunks');
+    const tabBtnSystem = document.getElementById('tab-btn-system');
+    const tabContentQueries = document.getElementById('tab-content-queries');
+    const tabContentChunks = document.getElementById('tab-content-chunks');
+    const tabContentSystem = document.getElementById('tab-content-system');
+
+    function switchTab(tab) {
+      [tabBtnQueries, tabBtnChunks, tabBtnSystem].forEach(btn => {
+        btn.className = 'tab-btn pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-2 font-mono text-xs';
+      });
+      [tabContentQueries, tabContentChunks, tabContentSystem].forEach(c => c.classList.add('hidden'));
+
+      if (tab === 'queries') {
+        tabBtnQueries.className = 'tab-btn pb-3 px-1 border-b-2 border-sky-400 text-sky-400 flex items-center space-x-2 font-mono text-xs';
+        tabContentQueries.classList.remove('hidden');
+        loadQueryLogs();
+      } else if (tab === 'chunks') {
+        tabBtnChunks.className = 'tab-btn pb-3 px-1 border-b-2 border-sky-400 text-sky-400 flex items-center space-x-2 font-mono text-xs';
+        tabContentChunks.classList.remove('hidden');
+        loadCorpusAndChunks();
+      } else if (tab === 'system') {
+        tabBtnSystem.className = 'tab-btn pb-3 px-1 border-b-2 border-sky-400 text-sky-400 flex items-center space-x-2 font-mono text-xs';
+        tabContentSystem.classList.remove('hidden');
+        loadStats();
+      }
+    }
+
+    tabBtnQueries.addEventListener('click', () => switchTab('queries'));
+    tabBtnChunks.addEventListener('click', () => switchTab('chunks'));
+    tabBtnSystem.addEventListener('click', () => switchTab('system'));
+
+    // Fetch Stats
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/admin/stats');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        document.getElementById('stat-total-chunks').textContent = data.total_chunks_indexed;
+        document.getElementById('stat-total-docs').textContent = data.total_unique_documents;
+        document.getElementById('stat-total-queries').textContent = data.total_queries_logged;
+        document.getElementById('stat-buffer-count').textContent = data.total_queries_logged;
+        document.getElementById('stat-avg-latency').textContent = data.average_latency_ms;
+        document.getElementById('stat-latency-range').textContent = `${data.min_latency_ms} - ${data.max_latency_ms} ms`;
+        document.getElementById('stat-llm-model').textContent = data.active_llm_model;
+        document.getElementById('stat-embed-model').textContent = `${data.embedding_model} (${data.embedding_dimension}-d)`;
+        document.getElementById('stat-backend-name').textContent = data.active_llm_provider;
+
+        // Diagnostics Tab
+        document.getElementById('diag-llm-provider').textContent = data.active_llm_provider;
+        document.getElementById('diag-llm-model').textContent = data.active_llm_model;
+        document.getElementById('diag-storage-path').textContent = data.vector_store_path;
+      } catch (err) {
+        console.error('Failed to load admin stats:', err);
+      }
+    }
+
+    // Load Query Logs
+    async function loadQueryLogs() {
+      try {
+        const res = await fetch('/api/admin/queries');
+        if (!res.ok) return;
+        const queries = await res.json();
+        activeQueries = queries;
+
+        const body = document.getElementById('query-log-body');
+        document.getElementById('query-table-count').textContent = `${queries.length} Records`;
+
+        if (queries.length === 0) {
+          body.innerHTML = `<tr><td colspan="9" class="py-8 text-center text-slate-500 italic">No query activity recorded yet. Run a query in the user portal to see live telemetry.</td></tr>`;
+          return;
+        }
+
+        body.innerHTML = '';
+        queries.forEach(q => {
+          const row = document.createElement('tr');
+          row.className = 'hover:bg-slate-800/40 transition-colors cursor-pointer';
+          const timeStr = new Date(q.timestamp).toLocaleTimeString();
+          const topSimPct = Math.round(q.top_similarity_score * 100);
+
+          row.innerHTML = `
+            <td class="py-3 px-4 font-bold text-sky-400">#${q.id}</td>
+            <td class="py-3 px-4 text-slate-400">${timeStr}</td>
+            <td class="py-3 px-4 text-slate-200 font-sans truncate max-w-[240px]" title="${escapeHtml(q.query)}">${escapeHtml(q.query)}</td>
+            <td class="py-3 px-4"><span class="px-1.5 py-0.5 rounded text-[10px] ${q.provider === 'ollama' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30' : 'bg-slate-800 text-slate-300'}">${q.provider}</span></td>
+            <td class="py-3 px-4">${q.top_k}</td>
+            <td class="py-3 px-4">${q.chunks_count}</td>
+            <td class="py-3 px-4"><span class="font-bold ${topSimPct >= 70 ? 'text-emerald-400' : 'text-amber-400'}">${q.top_similarity_score}</span></td>
+            <td class="py-3 px-4 text-amber-400 font-bold">${q.latency_ms} ms</td>
+            <td class="py-3 px-4 text-right">
+              <button onclick="openModal(${q.id})" class="px-2 py-1 rounded bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-[10px]">
+                Inspect
+              </button>
+            </td>
+          `;
+          body.appendChild(row);
+        });
+      } catch (err) {
+        console.error('Failed to load query logs:', err);
+      }
+    }
+
+    // Modal Inspection
+    window.openModal = function(id) {
+      const q = activeQueries.find(item => item.id === id);
+      if (!q) return;
+
+      document.getElementById('modal-query').textContent = q.query;
+      document.getElementById('modal-backend').textContent = `${q.provider} (${q.model})`;
+      document.getElementById('modal-topk').textContent = q.top_k;
+      document.getElementById('modal-latency').textContent = `${q.latency_ms} ms`;
+      document.getElementById('modal-sim').textContent = q.top_similarity_score;
+      document.getElementById('modal-answer').textContent = q.answer;
+
+      const chunksBox = document.getElementById('modal-chunks');
+      chunksBox.innerHTML = '';
+      if (!q.retrieved_chunks_preview || q.retrieved_chunks_preview.length === 0) {
+        chunksBox.innerHTML = `<p class="text-slate-500 italic">No evidence chunks retrieved for this query.</p>`;
+      } else {
+        q.retrieved_chunks_preview.forEach((c, idx) => {
+          const div = document.createElement('div');
+          div.className = 'p-3 bg-slate-900 rounded-lg border border-slate-800 space-y-1';
+          div.innerHTML = `
+            <div class="flex justify-between items-center text-[11px]">
+              <span class="text-sky-400 font-bold">#${idx + 1} ${escapeHtml(c.source_filename)} [Idx: ${c.chunk_index}]</span>
+              <span class="text-emerald-400 font-bold">Sim: ${c.similarity_score}</span>
+            </div>
+            <p class="text-slate-300 font-mono text-[11px] leading-relaxed">${escapeHtml(c.text_snippet)}</p>
+          `;
+          chunksBox.appendChild(div);
+        });
+      }
+
+      document.getElementById('query-modal').classList.remove('hidden');
+    };
+
+    document.getElementById('close-modal-btn').addEventListener('click', () => {
+      document.getElementById('query-modal').classList.add('hidden');
+    });
+
+    // Clear Logs
+    document.getElementById('clear-logs-btn').addEventListener('click', async () => {
+      if (!confirm('Clear recent query audit records?')) return;
+      await fetch('/api/admin/clear-logs', { method: 'POST' });
+      loadQueryLogs();
+      loadStats();
+    });
+
+    // Load Corpus & Chunks
+    async function loadCorpusAndChunks() {
+      try {
+        const [docsRes, chunksRes] = await Promise.all([
+          fetch('/api/documents'),
+          fetch('/api/admin/chunks')
+        ]);
+        const docsData = await docsRes.json();
+        const chunksData = await chunksRes.json();
+        allChunks = chunksData.chunks || [];
+
+        // Render Docs Grid
+        const grid = document.getElementById('corpus-docs-grid');
+        grid.innerHTML = '';
+        const filterSelect = document.getElementById('filter-doc-select');
+        filterSelect.innerHTML = '<option value="">All Documents</option>';
+
+        if (docsData.unique_documents.length === 0) {
+          grid.innerHTML = `<p class="text-slate-500 italic text-xs col-span-3">No documents in collection.</p>`;
+        } else {
+          docsData.unique_documents.forEach(doc => {
+            const count = allChunks.filter(c => c.source_filename === doc).length;
+            const card = document.createElement('div');
+            card.className = 'p-4 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between';
+            card.innerHTML = `
+              <div class="truncate mr-2 font-mono text-xs">
+                <div class="text-white font-semibold truncate" title="${escapeHtml(doc)}">${escapeHtml(doc)}</div>
+                <div class="text-slate-400 text-[11px]">${count} indexed chunks</div>
+              </div>
+              <button onclick="adminDeleteDoc('${escapeHtml(doc)}')" class="p-1.5 text-slate-500 hover:text-rose-400 transition-colors" title="Purge document">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            `;
+            grid.appendChild(card);
+
+            const opt = document.createElement('option');
+            opt.value = doc;
+            opt.textContent = doc;
+            filterSelect.appendChild(opt);
+          });
+        }
+
+        renderChunksCards(allChunks);
+      } catch (err) {
+        console.error('Failed to load corpus and chunks:', err);
+      }
+    }
+
+    function renderChunksCards(chunks) {
+      const container = document.getElementById('chunks-cards-container');
+      container.innerHTML = '';
+
+      if (chunks.length === 0) {
+        container.innerHTML = `<p class="text-slate-500 italic text-xs text-center py-6">No chunks found matching selection.</p>`;
+        return;
+      }
+
+      chunks.forEach((chunk, i) => {
+        const card = document.createElement('div');
+        card.className = 'p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-2 font-mono text-xs hover:border-slate-700 transition-colors';
+        card.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/30 font-bold">#${chunk.chunk_index}</span>
+              <span class="text-white font-semibold">${escapeHtml(chunk.source_filename)}</span>
+              <span class="text-slate-500">ID: ${chunk.chunk_id}</span>
+            </div>
+            <div class="text-slate-400 text-[10px]">
+              Range: [${chunk.start_char} - ${chunk.end_char}] | Length: ${chunk.character_count} chars
+            </div>
+          </div>
+          <div class="p-3 bg-slate-900/90 rounded-lg text-slate-300 leading-relaxed border border-slate-800/60 whitespace-pre-wrap">${escapeHtml(chunk.text)}</div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    document.getElementById('filter-doc-select').addEventListener('change', (e) => {
+      const doc = e.target.value;
+      if (!doc) {
+        renderChunksCards(allChunks);
+      } else {
+        renderChunksCards(allChunks.filter(c => c.source_filename === doc));
+      }
+    });
+
+    window.adminDeleteDoc = async function(filename) {
+      if (!confirm(`Delete ${filename} and purge all related vector chunks?`)) return;
+      await fetch(`/api/documents/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+      loadCorpusAndChunks();
+      loadStats();
+    };
+
+    document.getElementById('refresh-corpus-btn').addEventListener('click', loadCorpusAndChunks);
+    document.getElementById('refresh-all-btn').addEventListener('click', () => {
+      loadStats();
+      loadQueryLogs();
+    });
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text || '';
+      return div.innerHTML;
+    }
+
+    // Auto-refresh stats and query feed every 6 seconds
+    setInterval(() => {
+      loadStats();
+      if (!tabContentQueries.classList.contains('hidden')) {
+        loadQueryLogs();
+      }
+    }, 6000);
+
+    // Initial load
+    loadStats();
+    loadQueryLogs();
+  </script>
+</body>
+</html>
