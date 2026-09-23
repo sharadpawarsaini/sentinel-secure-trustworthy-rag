@@ -62,7 +62,7 @@
   <text x="906" y="94" fill="#cbd5e1" font-family="monospace" font-size="11" text-anchor="middle">System Online</text>
 
   <rect x="972" y="76" width="140" height="28" rx="8" fill="#0369a1" fill-opacity="0.2" stroke="#0284c7" stroke-width="1"/>
-  <text x="1042" y="94" fill="#38bdf8" font-family="-apple-system, sans-serif" font-size="11.5" font-weight="600" text-anchor="middle">&larr; User Portal</text>
+  <text x="1042" y="94" fill="#38bdf8" font-family="-apple-system, sans-serif" font-size="11.5" font-weight="600" text-anchor="middle">&#8592; User Portal</text>
 
   <!-- 4 KPI Summary Cards -->
   <!-- Card 1: Total Indexed Chunks -->
@@ -189,7 +189,7 @@
 
   <!-- Table Footer / Telemetry status -->
   <rect x="25" y="650" width="1100" height="46" rx="10" fill="#020617"/>
-  <text x="44" y="678" fill="#64748b" font-family="monospace" font-size="11">Showing recent 5 of 18 recorded transactions &bull; Audit storage: thread-safe circular buffer (200 records max)</text>
+  <text x="44" y="678" fill="#64748b" font-family="monospace" font-size="11">Showing recent 5 of 18 recorded transactions &#8226; Audit storage: thread-safe circular buffer (200 records max)</text>
   <rect x="990" y="660" width="120" height="26" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
   <text x="1050" y="677" fill="#94a3b8" font-family="sans-serif" font-size="11" text-anchor="middle">Export JSON Log</text>
 

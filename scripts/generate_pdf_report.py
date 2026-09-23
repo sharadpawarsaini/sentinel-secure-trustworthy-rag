@@ -1,4 +1,4 @@
-﻿"""Script to generate the comprehensive Phase 2 Testing PDF report with charts and tables."""
+﻿"""Script to generate the comprehensive Progress Report 1 PDF report with charts and tables."""
 
 import sys
 from pathlib import Path
@@ -25,7 +25,9 @@ from reportlab.platypus import (
 
 OUTPUT_DIR = Path("docs/reports")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-PDF_PATH = OUTPUT_DIR / "Phase_2_Testing_Report.pdf"
+PDF_PATH = OUTPUT_DIR / "progress_report_1.pdf"
+LEGACY_PDF_PATH = OUTPUT_DIR / "Phase_2_Testing_Report.pdf"
+
 CHART1_PATH = OUTPUT_DIR / "chart_component_tests.png"
 CHART2_PATH = OUTPUT_DIR / "chart_latency_profile.png"
 CHART3_PATH = OUTPUT_DIR / "chart_retrieval_accuracy.png"
@@ -139,12 +141,12 @@ def generate_charts():
     print("Charts successfully generated.")
 
 
-def build_pdf_report():
+def build_pdf_report(target_path: Path):
     """Assemble the complete PDF testing report using ReportLab."""
     generate_charts()
 
     doc = SimpleDocTemplate(
-        str(PDF_PATH),
+        str(target_path),
         pagesize=letter,
         rightMargin=32,
         leftMargin=32,
@@ -158,8 +160,8 @@ def build_pdf_report():
         "DocTitle",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=17,
-        leading=21,
+        fontSize=16,
+        leading=20,
         textColor=colors.HexColor("#0f172a"),
         alignment=0,
     )
@@ -223,8 +225,8 @@ def build_pdf_report():
     header_table = Table(
         [
             [
-                Paragraph("<b>SENTINEL RESEARCH PROJECT</b><br/><font size='13'><b>Phase 2 Baseline RAG — System & Testing Verification Report</b></font>", title_style),
-                Paragraph("<b>Classification:</b> Research Technical Report<br/><b>Pipeline Phase:</b> Phase 2 (Baseline RAG)<br/><b>Date:</b> September 2026<br/><b>Status:</b> <b>VERIFIED & OPERATIONAL</b>", meta_style)
+                Paragraph("<b>SENTINEL RESEARCH PROJECT</b><br/><font size='13'><b>Progress Report 1 — Baseline RAG Testing & Audit</b></font>", title_style),
+                Paragraph("<b>Classification:</b> Progress Report 1 (Milestone 2)<br/><b>Pipeline Phase:</b> Phase 2 (Baseline RAG)<br/><b>Date:</b> September 2026<br/><b>Status:</b> <b>VERIFIED & OPERATIONAL</b>", meta_style)
             ]
         ],
         colWidths=[4.3 * inch, 2.9 * inch]
@@ -238,12 +240,12 @@ def build_pdf_report():
 
     # Executive Summary Box
     summary_text = (
-        "<b>Executive Summary:</b> This document provides the formal technical verification and empirical testing audit for "
-        "<b>Phase 2 (Baseline RAG)</b> of the <i>SENTINEL (Secure and Trustworthy Retrieval-Augmented Generation)</i> system. "
-        "The Phase 2 milestone establishes the foundational baseline pipeline (System A: Extract &rarr; Chunk &rarr; Dense Embed &rarr; "
-        "ChromaDB Vector Store &rarr; Top-K Semantic Search &rarr; Grounded Prompt Assembly &rarr; LLM Synthesis) alongside "
-        "the <b>Admin Observability Console</b>. Automated test suites achieved <b>26 / 26 passed tests (100% pass rate)</b> across all unit and "
-        "integration suites with zero regressions. All components are operational under Python 3.12."
+        "<b>Executive Summary (Progress Report 1):</b> This formal technical report documents the empirical testing, verification audit, "
+        "and architectural benchmarks completed under <b>Milestone Phase 2 (Baseline RAG)</b> of the <i>SENTINEL (Secure and Trustworthy "
+        "Retrieval-Augmented Generation)</i> system. The Phase 2 milestone delivers an unaugmented, end-to-end baseline RAG pipeline "
+        "(Extract &rarr; Recursive Chunk &rarr; Dense Embed &rarr; ChromaDB HNSW Store &rarr; Top-K Semantic Retrieval &rarr; Grounded Prompt &rarr; LLM Synthesis) "
+        "alongside the dedicated <b>Admin Observability Console</b>. Rigorous automated testing achieved <b>26 / 26 passed tests (100% pass rate)</b> "
+        "across all unit, integration, and lifecycle suites under Python 3.12. All systems are operational and ready for Phase 3 security defense integration."
     )
     summary_box = Table(
         [[Paragraph(summary_text, callout_style)]],
@@ -355,7 +357,7 @@ def build_pdf_report():
     story.append(t_matrix)
     story.append(Spacer(1, 6))
 
-    # 3. Test Suite Pass Distribution Visual Chart (Fit cleanly on Page 1)
+    # 3. Test Suite Pass Distribution Visual Chart
     story.append(Paragraph("3. Test Suite Pass Distribution Visual Chart", h1_style))
     story.append(Image(str(CHART1_PATH), width=6.8 * inch, height=2.4 * inch))
 
@@ -539,7 +541,7 @@ def build_pdf_report():
     # 7. Architectural Sign-off & Readiness for Phase 3
     story.append(Paragraph("7. Architectural Sign-off & Readiness for Phase 3", h1_style))
     signoff_text = (
-        "<b>Phase 2 Milestone Conclusion:</b> The Baseline RAG pipeline and Admin Observability Console have met all specified requirements. "
+        "<b>Phase 2 Milestone Conclusion (Progress Report 1):</b> The Baseline RAG pipeline and Admin Observability Console have met all specified requirements. "
         "The system exhibits 100% test suite reliability, deterministic document chunking, resilient semantic retrieval via ChromaDB, and "
         "evidence-grounded prompt compilation. The pipeline serves as the empirical control benchmark (System A) against which "
         "Phase 3 (Multi-Layer Security), Phase 4 (Trust & NLI), and Phase 5 (Mitigation) will be comparatively evaluated."
@@ -566,8 +568,9 @@ def build_pdf_report():
 
     # Build Document
     doc.build(story)
-    print(f"Report PDF generated successfully at: {PDF_PATH}")
+    print(f"Report PDF generated successfully at: {target_path}")
 
 
 if __name__ == "__main__":
-    build_pdf_report()
+    build_pdf_report(PDF_PATH)
+    build_pdf_report(LEGACY_PDF_PATH)

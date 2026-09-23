@@ -13,7 +13,7 @@
   <rect width="1000" height="420" rx="16" fill="url(#darkBg)" stroke="#334155" stroke-width="1.5"/>
 
   <text x="40" y="40" fill="#ffffff" font-family="-apple-system, sans-serif" font-size="16" font-weight="700">SENTINEL — Baseline RAG Pipeline Architecture (System A)</text>
-  <text x="40" y="60" fill="#94a3b8" font-family="monospace" font-size="11">End-to-End Data Flow: Multi-format Extraction &rarr; SHA-256 Chunker &rarr; ChromaDB HNSW &rarr; Grounded Prompt &rarr; LLM</text>
+  <text x="40" y="60" fill="#94a3b8" font-family="monospace" font-size="11">End-to-End Data Flow: Multi-format Extraction &#8594; SHA-256 Chunker &#8594; ChromaDB HNSW &#8594; Grounded Prompt &#8594; LLM</text>
 
   <!-- Ingestion Flow Line -->
   <line x1="40" y1="80" x2="960" y2="80" stroke="#1e293b" stroke-width="1"/>

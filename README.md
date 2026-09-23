@@ -37,7 +37,7 @@ SENTINEL is an academic research-oriented system designed to investigate and res
 Below is an authentic visual preview of the operational SENTINEL web portal in action, illustrating real-time document ingestion, query execution, and verifiable evidence inspection:
 
 <p align="center">
-  <img src="docs/assets/web_portal_preview.svg" alt="SENTINEL Live Web Portal Interface" width="100%" />
+  <img src="docs/assets/web_portal_preview.png" alt="SENTINEL Live Web Portal Interface" width="100%" />
 </p>
 
 ---
@@ -47,7 +47,7 @@ Below is an authentic visual preview of the operational SENTINEL web portal in a
 SENTINEL features a specialized, high-security **Admin Observability Console** accessible at `/admin`. Exclusively tailored for Phase 2 baseline telemetry, the console provides system administrators and researchers with end-to-end transparency over baseline RAG operations:
 
 <p align="center">
-  <img src="docs/assets/admin_panel_preview.svg" alt="SENTINEL Executive Admin Observability Console" width="100%" />
+  <img src="docs/assets/admin_panel_preview.png" alt="SENTINEL Executive Admin Observability Console" width="100%" />
 </p>
 
 ### Admin Observability Capabilities
@@ -65,11 +65,11 @@ SENTINEL features a specialized, high-security **Admin Observability Console** a
 Every component is independently tested and verified through automated test suites in pytest. All 26 unit and integration tests are passing with zero failures:
 
 <p align="center">
-  <img src="docs/assets/test_coverage_chart.svg" alt="SENTINEL Test Suite Results" width="100%" />
+  <img src="docs/assets/test_coverage_chart.png" alt="SENTINEL Test Suite Results" width="100%" />
 </p>
 
-> 📄 **Official PDF Audit Report Available:** The formal academic testing document with charts, telemetry breakdown, and endpoint performance profiles is available in PDF format:  
-> 🔗 **[`docs/reports/Phase_2_Testing_Report.pdf`](docs/reports/Phase_2_Testing_Report.pdf)** *(Generated via ReportLab with Matplotlib visual analytics).*
+> 📄 **Official PDF Audit & Progress Report Available:** The formal academic testing document with charts, telemetry breakdown, and endpoint performance profiles is available in PDF format:  
+> 🔗 **[`docs/reports/progress_report_1.pdf`](docs/reports/progress_report_1.pdf)** *(Progress Report 1: Generated via ReportLab with Matplotlib visual analytics).*
 
 ### Detailed Component Verification Matrix
 
