@@ -10,6 +10,7 @@ class DocumentUploadResponse(BaseModel):
     file_type: str = Field(..., description="File format extension (.pdf, .docx, .txt).")
     character_count: int = Field(..., description="Extracted plain text character count.")
     chunks_created: int = Field(..., description="Number of chunks generated and indexed.")
+    quarantined_chunks: int = Field(default=0, description="Chunks quarantined due to poisoning signatures.")
     status: str = Field(default="indexed", description="Ingestion status.")
 
 
@@ -19,6 +20,7 @@ class QueryRequest(BaseModel):
     top_k: int = Field(default=4, ge=1, le=20, description="Number of evidence chunks to retrieve.")
     score_threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Minimum cosine similarity cutoff.")
     provider: Optional[str] = Field(default=None, description="Optional LLM backend override ('ollama', 'mock').")
+    enable_mitigation: bool = Field(default=True, description="Enable automated query reformulation on low trust.")
 
 
 class ChunkEvidence(BaseModel):
@@ -32,14 +34,21 @@ class ChunkEvidence(BaseModel):
 
 
 class QueryResponse(BaseModel):
-    """Response returned after RAG retrieval and generation."""
+    """Response returned after RAG retrieval, security scan, and trust evaluation."""
     query: str = Field(..., description="Original question submitted.")
     answer: str = Field(..., description="Generated answer text.")
     retrieved_chunks: List[ChunkEvidence] = Field(default_factory=list, description="Evidence chunks used.")
     model: str = Field(..., description="Model identifier used for generation.")
     provider: str = Field(..., description="LLM provider name.")
     latency_ms: float = Field(..., description="Total roundtrip pipeline latency in milliseconds.")
-    pipeline_mode: str = Field(default="BASELINE_RAG", description="Active pipeline operational mode.")
+    pipeline_mode: str = Field(default="SENTINEL_CLOSED_LOOP", description="Active pipeline operational mode.")
+    trust_score: float = Field(default=1.0, description="Composite trust score in [0.0, 1.0].")
+    trust_verdict: str = Field(default="TRUSTWORTHY", description="Trust evaluation verdict.")
+    is_abstained: bool = Field(default=False, description="True if system abstained from answering.")
+    abstention_reason: Optional[str] = Field(default=None, description="Reason code if abstained.")
+    security_action: str = Field(default="PASS", description="Input security verdict ('PASS', 'FLAG', 'BLOCK').")
+    quarantined_chunks_count: int = Field(default=0, description="Number of retrieved chunks quarantined.")
+    telemetry: Optional[Dict[str, Any]] = Field(default=None, description="Pipeline latency and barrier breakdown.")
 
 
 class DocumentListResponse(BaseModel):
@@ -53,11 +62,12 @@ class DocumentListResponse(BaseModel):
 class HealthResponse(BaseModel):
     """System health status."""
     status: str = Field(default="healthy")
-    version: str = Field(default="0.1.0")
+    version: str = Field(default="0.4.0")
     llm_provider: str
     llm_model: str
     embedding_model: str
     total_chunks: int
+    pipeline_phase: str = "Phase 4: Trust Evaluation & Hallucination Mitigation"
 
 
 # --- Admin Observability Schemas ---
@@ -65,8 +75,8 @@ class HealthResponse(BaseModel):
 class AdminStatsResponse(BaseModel):
     """Aggregated metrics and system diagnostics for Admin Console."""
     status: str = "operational"
-    pipeline_phase: str = "Phase 2: Baseline RAG"
-    system_version: str = "0.1.0"
+    pipeline_phase: str = "Phase 4: Trust & Security Integrated"
+    system_version: str = "0.4.0"
     active_llm_provider: str
     active_llm_model: str
     embedding_model: str
