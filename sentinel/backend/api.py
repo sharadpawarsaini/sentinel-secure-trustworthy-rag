@@ -1,8 +1,8 @@
-"""FastAPI REST application and endpoints for SENTINEL Baseline RAG.
+"""FastAPI REST application and endpoints for SENTINEL.
 
-Exposes endpoints for document upload, question querying, evidence inspection,
-and collection management.
-Owned by: Sharad (Backend Architecture & Integration)
+Exposes endpoints for document upload, question querying with closed-loop security
+and trust evaluation, collection management, and admin observability.
+Owned by: Sharad (Lead AI Engineer & System Architect)
 """
 
 from pathlib import Path
@@ -17,6 +17,8 @@ from sentinel.rag.document_loader import DocumentLoader
 from sentinel.rag.chunker import TextChunker
 from sentinel.rag.vector_store import VectorStoreManager
 from sentinel.rag.generator import BaselineGenerator, get_llm_client
+from sentinel.security.document_scanner import DocumentScanner
+from sentinel.pipeline import SentinelPipeline
 from sentinel.backend.audit import activity_logger
 from sentinel.backend.schemas import (
     DocumentUploadResponse,
@@ -33,8 +35,8 @@ from sentinel.backend.schemas import (
 # Initialize FastAPI application
 app = FastAPI(
     title="SENTINEL: Secure and Trustworthy RAG",
-    description="Research-oriented Secure and Trustworthy RAG System - Phase 2 Baseline RAG",
-    version="0.1.0"
+    description="Research-oriented Secure and Trustworthy RAG System - Phase 4 Integrated Pipeline",
+    version="0.4.0"
 )
 
 # Add CORS Middleware
@@ -53,6 +55,11 @@ chunker = TextChunker(
 )
 vector_store = VectorStoreManager()
 generator = BaselineGenerator(llm_client=get_llm_client())
+document_scanner = DocumentScanner()
+pipeline = SentinelPipeline(
+    vector_store=vector_store,
+    generator=generator
+)
 
 # Static directory path
 STATIC_DIR = Path(__file__).parent / "static"
@@ -96,11 +103,12 @@ async def healthcheck():
     stats = vector_store.get_collection_stats()
     return HealthResponse(
         status="healthy",
-        version="0.1.0",
+        version="0.4.0",
         llm_provider=settings.llm_provider,
         llm_model=settings.llm_model,
         embedding_model=settings.embedding_model_name,
-        total_chunks=stats["total_chunks"]
+        total_chunks=stats["total_chunks"],
+        pipeline_phase="Phase 4: Trust Evaluation & Hallucination Mitigation"
     )
 
 
@@ -113,7 +121,8 @@ async def healthcheck():
 async def upload_document(file: UploadFile = File(...)):
     """Upload and ingest a document into the ChromaDB vector store.
 
-    Accepts .pdf, .docx, and .txt files.
+    Accepts .pdf, .docx, and .txt files. Runs document poisoning inspection
+    and quarantines malicious chunks automatically.
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="Uploaded file must have a valid filename.")
@@ -133,18 +142,21 @@ async def upload_document(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process document: {e}")
 
-    # Chunk the extracted document
+    # 1. Chunk the extracted document
     chunks = chunker.chunk_document(loaded_doc)
     if not chunks:
         raise HTTPException(status_code=400, detail="Document contained no chunkable text content.")
 
-    # Upsert chunks into ChromaDB
+    # 2. Security scan for poisoning and canary injections
+    scan_report = document_scanner.scan_document(chunks, filename=loaded_doc.source_filename)
+
+    # 3. Upsert chunks into ChromaDB
     try:
         vector_store.add_chunks(chunks)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to store document in vector database: {e}")
 
-    # Telemetry logging
+    # 4. Telemetry logging
     activity_logger.log_ingestion(
         filename=loaded_doc.source_filename,
         file_type=loaded_doc.file_type,
@@ -157,7 +169,8 @@ async def upload_document(file: UploadFile = File(...)):
         file_type=loaded_doc.file_type,
         character_count=loaded_doc.character_count,
         chunks_created=len(chunks),
-        status="indexed"
+        quarantined_chunks=scan_report.quarantined_chunks_count,
+        status="indexed" if scan_report.quarantined_chunks_count == 0 else "indexed_with_quarantines"
     )
 
 
@@ -191,37 +204,39 @@ async def delete_document(filename: str):
 
 @app.post("/api/rag/query", response_model=QueryResponse, tags=["RAG"])
 async def query_rag(request: QueryRequest):
-    """Query the Baseline RAG system.
+    """Query the SENTINEL Trust-Aware RAG system.
 
-    Retrieves top-K semantic chunks from ChromaDB, constructs a grounded prompt,
-    and returns the LLM response with verifiable evidence chunks.
+    Executes closed-loop pipeline:
+    Input Security -> Vector Retrieval -> Context Security -> LLM Generation
+    -> Trust Scoring -> Mitigation -> Egress Scan -> Verifiable Response.
     """
     clean_query = request.query.strip()
     if not clean_query:
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
 
-    # 1. Semantic Retrieval
-    retrieved_chunks = vector_store.query_similar(
-        query_text=clean_query,
-        top_k=request.top_k,
-        score_threshold=request.score_threshold
-    )
-
-    # 2. Baseline Generation
-    try:
-        active_generator = (
-            BaselineGenerator(llm_client=get_llm_client(provider=request.provider))
-            if request.provider
-            else generator
+    # Override LLM provider if requested
+    active_pipeline = pipeline
+    if request.provider:
+        custom_gen = BaselineGenerator(llm_client=get_llm_client(provider=request.provider))
+        active_pipeline = SentinelPipeline(
+            vector_store=vector_store,
+            generator=custom_gen
         )
-        gen_result = active_generator.generate(query=clean_query, chunks=retrieved_chunks)
+
+    # Execute full multi-barrier pipeline
+    try:
+        pipeline_res = active_pipeline.query(
+            query_text=clean_query,
+            top_k=request.top_k,
+            enable_mitigation=request.enable_mitigation
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"LLM Generation failure: {e}"
+            detail=f"Pipeline processing failure: {e}"
         )
 
-    # Convert to API response evidence format
+    # Convert retrieved chunks to API schema
     evidence_list = [
         ChunkEvidence(
             chunk_id=c.chunk_id,
@@ -231,31 +246,38 @@ async def query_rag(request: QueryRequest):
             text=c.text,
             metadata=c.metadata
         )
-        for c in retrieved_chunks
+        for c in pipeline_res.retrieved_chunks
     ]
 
     # Telemetry logging for Admin Observability
-    top_sim = retrieved_chunks[0].similarity_score if retrieved_chunks else 0.0
+    top_sim = pipeline_res.retrieved_chunks[0].similarity_score if pipeline_res.retrieved_chunks else 0.0
     activity_logger.log_query(
         query=clean_query,
         top_k=request.top_k,
-        provider=gen_result.provider,
-        model=gen_result.model,
-        latency_ms=gen_result.latency_ms,
-        chunks_count=len(retrieved_chunks),
+        provider=generator.client.provider_name,
+        model=generator.client.model_name,
+        latency_ms=pipeline_res.telemetry.total_latency_ms,
+        chunks_count=len(pipeline_res.retrieved_chunks),
         top_similarity_score=top_sim,
-        answer=gen_result.answer,
-        retrieved_chunks=retrieved_chunks
+        answer=pipeline_res.answer,
+        retrieved_chunks=pipeline_res.retrieved_chunks
     )
 
     return QueryResponse(
-        query=gen_result.query,
-        answer=gen_result.answer,
+        query=pipeline_res.query,
+        answer=pipeline_res.answer,
         retrieved_chunks=evidence_list,
-        model=gen_result.model,
-        provider=gen_result.provider,
-        latency_ms=gen_result.latency_ms,
-        pipeline_mode="BASELINE_RAG"
+        model=generator.client.model_name,
+        provider=generator.client.provider_name,
+        latency_ms=pipeline_res.telemetry.total_latency_ms,
+        pipeline_mode="SENTINEL_CLOSED_LOOP",
+        trust_score=pipeline_res.trust_score,
+        trust_verdict=pipeline_res.trust_verdict,
+        is_abstained=pipeline_res.is_abstained,
+        abstention_reason=pipeline_res.abstention_reason,
+        security_action=pipeline_res.security_action,
+        quarantined_chunks_count=pipeline_res.quarantined_chunks_count,
+        telemetry=pipeline_res.telemetry.model_dump()
     )
 
 
@@ -269,8 +291,8 @@ async def get_admin_stats():
 
     return AdminStatsResponse(
         status="operational",
-        pipeline_phase="Phase 2: Baseline RAG",
-        system_version="0.1.0",
+        pipeline_phase="Phase 4: Trust & Security Integrated",
+        system_version="0.4.0",
         active_llm_provider=settings.llm_provider,
         active_llm_model=generator.client.model_name,
         embedding_model=settings.embedding_model_name,
@@ -279,64 +301,65 @@ async def get_admin_stats():
         vector_store_collection=vector_store.collection_name,
         total_chunks_indexed=vs_stats["total_chunks"],
         total_unique_documents=vs_stats["unique_documents_count"],
-        total_queries_logged=metrics["total_queries_logged"],
-        average_latency_ms=metrics["average_latency_ms"],
+        total_queries_logged=metrics["total_queries"],
+        average_latency_ms=metrics["avg_latency_ms"],
         min_latency_ms=metrics["min_latency_ms"],
         max_latency_ms=metrics["max_latency_ms"]
     )
 
 
-@app.get("/api/admin/queries", tags=["Admin"])
-async def get_admin_queries(limit: int = 100):
-    """Retrieve recent query audit logs."""
-    return activity_logger.get_queries(limit=limit)
-
-
 @app.get("/api/admin/chunks", response_model=AdminChunksResponse, tags=["Admin"])
-async def get_admin_chunks(source_filename: Optional[str] = None):
-    """Inspect stored chunks directly from the ChromaDB vector index."""
-    total_count = vector_store.collection.count()
-    if total_count == 0:
-        return AdminChunksResponse(total_chunks=0, filtered_count=0, chunks=[])
+async def list_admin_chunks(
+    doc: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0
+):
+    """Retrieve indexed chunks with metadata for inspection and debugging."""
+    all_chunks = vector_store.get_all_chunks(limit=500)
 
-    where_filter = {"source_filename": source_filename} if source_filename else None
-    results = vector_store.collection.get(
-        where=where_filter,
-        include=["documents", "metadatas"]
-    )
+    if doc:
+        filtered = [c for c in all_chunks if c.source_filename == doc]
+    else:
+        filtered = all_chunks
 
-    ids = results.get("ids", [])
-    docs = results.get("documents", [])
-    metas = results.get("metadatas", [])
+    paginated = filtered[offset: offset + limit]
 
-    chunk_items = []
-    for chunk_id, doc_text, meta in zip(ids, docs, metas):
-        meta_dict = meta or {}
-        chunk_items.append(
-            AdminChunkItem(
-                chunk_id=chunk_id,
-                source_filename=str(meta_dict.get("source_filename", "unknown")),
-                chunk_index=int(meta_dict.get("chunk_index", 0)),
-                character_count=int(meta_dict.get("character_count", len(doc_text))),
-                start_char=int(meta_dict.get("start_char", 0)),
-                end_char=int(meta_dict.get("end_char", len(doc_text))),
-                text=doc_text,
-                metadata=meta_dict
-            )
+    chunk_items = [
+        AdminChunkItem(
+            chunk_id=c.chunk_id,
+            source_filename=c.source_filename,
+            chunk_index=c.chunk_index,
+            character_count=c.character_count,
+            start_char=c.start_char,
+            end_char=c.end_char,
+            text=c.text,
+            metadata=c.metadata
         )
-
-    # Sort chunks by source_filename then chunk_index
-    chunk_items.sort(key=lambda x: (x.source_filename, x.chunk_index))
+        for c in paginated
+    ]
 
     return AdminChunksResponse(
-        total_chunks=total_count,
-        filtered_count=len(chunk_items),
+        total_chunks=len(all_chunks),
+        filtered_count=len(filtered),
         chunks=chunk_items
     )
 
 
-@app.post("/api/admin/clear-logs", tags=["Admin"])
-async def clear_admin_logs():
-    """Reset the query audit trail buffer."""
-    activity_logger.clear_logs()
-    return {"status": "cleared"}
+@app.get("/api/admin/activity", tags=["Admin"])
+async def get_activity_feed(limit: int = 50):
+    """Retrieve recent queries and document ingestion events for the live log."""
+    return {
+        "recent_queries": activity_logger.get_recent_queries(limit=limit),
+        "recent_ingestions": activity_logger.get_recent_ingestions(limit=limit)
+    }
+
+
+@app.post("/api/admin/clear-data", tags=["Admin"])
+async def clear_all_data():
+    """Clear the persistent ChromaDB collection and flush telemetry logs."""
+    vector_store.clear_collection()
+    activity_logger.clear_all()
+    return {
+        "status": "cleared",
+        "message": "Persistent vector store collection and telemetry logs have been reset."
+    }

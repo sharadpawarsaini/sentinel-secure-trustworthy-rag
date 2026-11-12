@@ -65,7 +65,9 @@ def test_upload_and_query_flow(client: TestClient):
     assert len(query_data["retrieved_chunks"]) > 0
     assert query_data["retrieved_chunks"][0]["source_filename"] == "corporate_facts.txt"
     assert query_data["retrieved_chunks"][0]["similarity_score"] > 0.40
-    assert query_data["pipeline_mode"] == "BASELINE_RAG"
+    assert query_data["pipeline_mode"] in ("BASELINE_RAG", "SENTINEL_CLOSED_LOOP")
+    assert "trust_score" in query_data
+    assert "trust_verdict" in query_data
 
     # 4. Delete document
     del_res = client.delete("/api/documents/corporate_facts.txt")
