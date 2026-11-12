@@ -11,7 +11,9 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Phase%201-Research%20Completed-success?style=flat-square" alt="Phase 1" />
   <img src="https://img.shields.io/badge/Phase%202-Baseline%20RAG%20Operational-success?style=flat-square" alt="Phase 2" />
-  <img src="https://img.shields.io/badge/Tests-26%20Passing%20(100%25)-emerald?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/Phase%203-Security%20Layer%20Operational-success?style=flat-square" alt="Phase 3" />
+  <img src="https://img.shields.io/badge/Phase%204-Trust%20Engine%20Operational-success?style=flat-square" alt="Phase 4" />
+  <img src="https://img.shields.io/badge/Tests-51%20Passing%20(100%25)-emerald?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/Python-3.12+-blue?style=flat-square&logo=python" alt="Python" />
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=flat-square&logo=fastapi" alt="FastAPI" />
   <img src="https://img.shields.io/badge/VectorDB-ChromaDB-purple?style=flat-square" alt="ChromaDB" />
@@ -310,7 +312,7 @@ uv pip install -r requirements.txt
 
 ### 4. Run the Full Test Suite
 ```powershell
-.\.venv\Scripts\pytest.exe tests/unit/ -v
+.\.venv\Scripts\pytest.exe -v
 ```
 
 ---
