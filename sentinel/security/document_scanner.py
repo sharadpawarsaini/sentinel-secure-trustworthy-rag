@@ -38,7 +38,7 @@ class DocumentScanner:
 
     # Document poisoning signatures: instructions embedded to manipulate downstream RAG sessions
     POISON_PATTERNS = [
-        (re.compile(r"\[\s*(?:INSTRUCTION|SYSTEM\s+PROMPT|OVERRIDE|ADMIN_COMMAND)\s*:\s*[^\]]+\]", re.I), "embedded_instruction_tag", 0.90),
+        (re.compile(r"\[\s*(?:INSTRUCTION|SYSTEM\s+PROMPT|SYSTEM\s+OVERRIDE|OVERRIDE|ADMIN_COMMAND)\s*:\s*[^\]]+\]", re.I), "embedded_instruction_tag", 0.90),
         (re.compile(r"\b(?:NOTE\s+TO\s+(?:AI|LLM|ASSISTANT)|ATTENTION\s+ASSISTANT)\s*:\s*", re.I), "model_directed_note", 0.85),
         (re.compile(r"\bwhen\s+answering\s+(?:this|any)\s+query,\s+(?:ignore|forget|bypass)\b", re.I), "conditional_override_poison", 0.85),
         (re.compile(r"\bsecretly\s+(?:send|transmit|exfiltrate|forward|append)\s+(?:the\s+)?(?:data|token|context|password)\b", re.I), "exfiltration_instruction", 0.95),
