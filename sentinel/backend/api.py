@@ -266,6 +266,38 @@ async def query_rag(request: QueryRequest):
         security_action=pipeline_res.security_action,
     )
 
+    # Format NLI claims and trust breakdown for deep explainability
+    claims_list = []
+    breakdown = {}
+    if pipeline_res.trust_report:
+        tr = pipeline_res.trust_report
+        breakdown = {
+            "retrieval_confidence": round(tr.retrieval_confidence, 4),
+            "context_relevance": round(tr.semantic_relevance, 4),
+            "faithfulness_score": round(tr.faithfulness_ratio, 4),
+            "claims_count": tr.claims_count,
+            "entailed_claims": tr.entailed_claims,
+            "contradicted_claims": tr.contradicted_claims,
+            "composite_score": round(tr.trust_score, 4),
+            "recommendation": tr.recommendation,
+            "explanation": tr.explanation,
+        }
+        if tr.nli_report and tr.nli_report.claim_results:
+            for cr in tr.nli_report.claim_results:
+                conf = cr.entailment_prob if cr.verdict == "ENTAILED" else (
+                    cr.contradiction_prob if cr.verdict == "CONTRADICTED" else cr.neutral_prob
+                )
+                claims_list.append({
+                    "claim": cr.claim,
+                    "verdict": cr.verdict,
+                    "confidence": round(conf, 4),
+                    "entailment_prob": round(cr.entailment_prob, 4),
+                    "neutral_prob": round(cr.neutral_prob, 4),
+                    "contradiction_prob": round(cr.contradiction_prob, 4),
+                    "supporting_chunk_id": cr.best_supporting_chunk_id,
+                    "supporting_source": cr.best_supporting_source,
+                })
+
     return QueryResponse(
         query=pipeline_res.query,
         answer=pipeline_res.answer,
@@ -280,6 +312,8 @@ async def query_rag(request: QueryRequest):
         abstention_reason=pipeline_res.abstention_reason,
         security_action=pipeline_res.security_action,
         quarantined_chunks_count=pipeline_res.quarantined_chunks_count,
+        nli_claims=claims_list,
+        trust_breakdown=breakdown,
         telemetry=pipeline_res.telemetry.model_dump()
     )
 

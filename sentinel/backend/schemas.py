@@ -48,6 +48,8 @@ class QueryResponse(BaseModel):
     abstention_reason: Optional[str] = Field(default=None, description="Reason code if abstained.")
     security_action: str = Field(default="PASS", description="Input security verdict ('PASS', 'FLAG', 'BLOCK').")
     quarantined_chunks_count: int = Field(default=0, description="Number of retrieved chunks quarantined.")
+    nli_claims: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Extracted claims with NLI verification.")
+    trust_breakdown: Optional[Dict[str, Any]] = Field(default=None, description="Detailed component trust scores.")
     telemetry: Optional[Dict[str, Any]] = Field(default=None, description="Pipeline latency and barrier breakdown.")
 
 
