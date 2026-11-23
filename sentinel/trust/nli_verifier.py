@@ -156,8 +156,10 @@ class NLIVerifier:
                     logits = self._model(**inputs).logits
                     probs = torch.softmax(logits, dim=-1)[0].tolist()
 
-                # Model label mapping for DeBERTa: 0: contradiction, 1: neutral, 2: entailment
-                p_contra, p_neutral, p_entail = probs[0], probs[1], probs[2]
+                # Model label mapping for DeBERTa: 0: contradiction, 1: entailment, 2: neutral
+                p_contra = probs[0]
+                p_entail = probs[1]
+                p_neutral = probs[2]
 
             if p_contra > worst_contradiction:
                 worst_contradiction = p_contra

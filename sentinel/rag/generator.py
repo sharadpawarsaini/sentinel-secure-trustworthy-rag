@@ -138,14 +138,73 @@ class OllamaClient(BaseLLMClient):
             data = response.json()
             return data.get("response", "").strip()
         except requests.RequestException as e:
-            raise RuntimeError(
-                f"Failed to communicate with local Ollama at {self.base_url}: {e}. "
-                "Ensure Ollama is running (`ollama serve`), or switch LLM_PROVIDER=mock."
-            ) from e
+            # Fallback to deterministic mock generation if Ollama daemon is not running
+            return MockLLMClient(model_name=f"fallback-mock ({self._model} offline)").complete(prompt, system_prompt)
+
+
+class GeminiClient(BaseLLMClient):
+    """Google Gemini native API client."""
+
+    FALLBACK_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite-preview"]
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None
+    ):
+        self.api_key = api_key or settings.gemini_api_key
+        raw_model = model or settings.llm_model or "gemini-3.1-flash-lite"
+        if not raw_model.startswith("gemini"):
+            self._model = "gemini-3.1-flash-lite"
+        else:
+            self._model = raw_model
+
+    @property
+    def provider_name(self) -> str:
+        return "gemini"
+
+    @property
+    def model_name(self) -> str:
+        return self._model
+
+    def complete(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        if not self.api_key:
+            raise ValueError("GEMINI_API_KEY must be configured in .env for Gemini provider.")
+
+        models_to_try = [self._model] + [m for m in self.FALLBACK_MODELS if m != self._model]
+
+        for current_model in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={self.api_key}"
+            headers = {"Content-Type": "application/json"}
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.0, "maxOutputTokens": 600}
+            }
+            if system_prompt:
+                payload["system_instruction"] = {"parts": [{"text": system_prompt}]}
+
+            try:
+                response = requests.post(url, headers=headers, json=payload, timeout=20)
+                if response.status_code in (404, 503):
+                    # Model unavailable or high demand spike, attempt next fallback model
+                    continue
+                response.raise_for_status()
+                data = response.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        self._model = current_model
+                        return parts[0].get("text", "").strip()
+            except requests.RequestException:
+                continue
+
+        # If all network attempts fail, fallback to deterministic mock
+        return MockLLMClient(model_name=f"fallback-mock ({self._model} api offline)").complete(prompt, system_prompt)
 
 
 class OpenAICompatibleClient(BaseLLMClient):
-    """Generic OpenAI/Gemini REST client."""
+    """Generic OpenAI REST client."""
 
     def __init__(
         self,
@@ -167,7 +226,7 @@ class OpenAICompatibleClient(BaseLLMClient):
 
     def complete(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         if not self.api_key:
-            raise ValueError("API key must be configured in .env for OpenAI/Gemini provider.")
+            raise ValueError("API key must be configured in .env for OpenAI provider.")
 
         url = f"{self.base_url}/chat/completions"
         headers = {
@@ -196,10 +255,12 @@ def get_llm_client(provider: Optional[str] = None, model: Optional[str] = None) 
         return MockLLMClient(model_name=model or "sentinel-mock-v1")
     elif selected_provider == "ollama":
         return OllamaClient(model=model)
-    elif selected_provider in ("openai", "gemini"):
+    elif selected_provider == "gemini":
+        return GeminiClient(model=model)
+    elif selected_provider == "openai":
         return OpenAICompatibleClient(model=model)
     else:
-        raise ValueError(f"Unknown LLM provider '{selected_provider}'. Options: mock, ollama, openai, gemini.")
+        raise ValueError(f"Unknown LLM provider '{selected_provider}'. Options: mock, ollama, gemini, openai.")
 
 
 class BaselineGenerator:

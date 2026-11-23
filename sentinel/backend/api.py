@@ -260,7 +260,10 @@ async def query_rag(request: QueryRequest):
         chunks_count=len(pipeline_res.retrieved_chunks),
         top_similarity_score=top_sim,
         answer=pipeline_res.answer,
-        retrieved_chunks=pipeline_res.retrieved_chunks
+        retrieved_chunks=pipeline_res.retrieved_chunks,
+        trust_score=pipeline_res.trust_score,
+        trust_verdict=pipeline_res.trust_verdict,
+        security_action=pipeline_res.security_action,
     )
 
     return QueryResponse(
@@ -301,8 +304,8 @@ async def get_admin_stats():
         vector_store_collection=vector_store.collection_name,
         total_chunks_indexed=vs_stats["total_chunks"],
         total_unique_documents=vs_stats["unique_documents_count"],
-        total_queries_logged=metrics["total_queries"],
-        average_latency_ms=metrics["avg_latency_ms"],
+        total_queries_logged=metrics["total_queries_logged"],
+        average_latency_ms=metrics["average_latency_ms"],
         min_latency_ms=metrics["min_latency_ms"],
         max_latency_ms=metrics["max_latency_ms"]
     )
@@ -352,6 +355,22 @@ async def get_activity_feed(limit: int = 50):
         "recent_queries": activity_logger.get_recent_queries(limit=limit),
         "recent_ingestions": activity_logger.get_recent_ingestions(limit=limit)
     }
+
+
+@app.get("/api/admin/audit", tags=["Admin"])
+async def get_audit_feed(limit: int = 50):
+    """Alias for /api/admin/activity — returns recent queries and ingestions."""
+    return {
+        "recent_queries": activity_logger.get_recent_queries(limit=limit),
+        "recent_ingestions": activity_logger.get_recent_ingestions(limit=limit)
+    }
+
+
+@app.post("/api/admin/clear", tags=["Admin"])
+async def clear_logs_only():
+    """Clear only the in-memory telemetry and audit logs (keeps vector store)."""
+    activity_logger.clear_all()
+    return {"status": "cleared", "message": "Telemetry logs have been reset."}
 
 
 @app.post("/api/admin/clear-data", tags=["Admin"])

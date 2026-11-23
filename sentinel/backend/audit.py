@@ -23,6 +23,9 @@ class QueryAuditRecord(BaseModel):
     chunks_count: int
     top_similarity_score: float
     answer: str
+    trust_score: Optional[float] = None
+    trust_verdict: Optional[str] = None
+    security_action: Optional[str] = None
     retrieved_chunks_preview: List[Dict[str, Any]] = Field(default_factory=list)
 
 
@@ -65,7 +68,10 @@ class ActivityLogger:
         chunks_count: int,
         top_similarity_score: float,
         answer: str,
-        retrieved_chunks: Optional[List[Any]] = None
+        retrieved_chunks: Optional[List[Any]] = None,
+        trust_score: Optional[float] = None,
+        trust_verdict: Optional[str] = None,
+        security_action: Optional[str] = None,
     ) -> QueryAuditRecord:
         """Log a new RAG query event into the circular buffer."""
         with self._lock:
@@ -110,6 +116,9 @@ class ActivityLogger:
                 chunks_count=chunks_count,
                 top_similarity_score=round(top_similarity_score, 4),
                 answer=answer,
+                trust_score=trust_score,
+                trust_verdict=trust_verdict,
+                security_action=security_action,
                 retrieved_chunks_preview=chunks_summary
             )
             self.queries.appendleft(record)
@@ -171,6 +180,16 @@ class ActivityLogger:
         with self._lock:
             self.queries.clear()
             self.ingestions.clear()
+
+    # ── Aliases for API compatibility ──────────────────────────────────────────
+    def get_recent_queries(self, limit: int = 50) -> List[QueryAuditRecord]:
+        return self.get_queries(limit=limit)
+
+    def get_recent_ingestions(self, limit: int = 50) -> List[IngestionAuditRecord]:
+        return self.get_ingestions(limit=limit)
+
+    def clear_all(self) -> None:
+        self.clear_logs()
 
 
 # Global logger instance
