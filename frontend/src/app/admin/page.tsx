@@ -47,12 +47,6 @@ interface QueryRecord {
   trust_score?: number;
   trust_verdict?: string;
   security_action?: string;
-  retrieved_chunks_preview?: Array<{
-    chunk_id: string;
-    source_filename: string;
-    similarity_score: number;
-    text_snippet: string;
-  }>;
 }
 
 interface AuditData {
@@ -66,78 +60,12 @@ interface AuditData {
   }>;
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
-function trustColor(score?: number) {
-  if (!score) return "text-zinc-500";
-  if (score >= 0.75) return "text-emerald-400";
-  if (score >= 0.50) return "text-amber-400";
-  return "text-red-400";
-}
-
-function verdictPill(verdict?: string, isAbstained?: boolean) {
-  if (!verdict) return <span className="text-zinc-600 text-xs">—</span>;
-  const v = isAbstained ? "ABSTAINED" : verdict;
-  const colors: Record<string, string> = {
-    TRUSTWORTHY: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-    PARTIALLY_SUPPORTED: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-    CONTRADICTED: "bg-red-500/15 text-red-300 border-red-500/30",
-    POTENTIALLY_HALLUCINATED: "bg-pink-500/15 text-pink-300 border-pink-500/30",
-    ABSTAINED: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
-    INSUFFICIENTLY_SUPPORTED: "bg-orange-500/15 text-orange-300 border-orange-500/30",
-  };
-  return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold border ${colors[v] ?? "bg-zinc-800 text-zinc-400 border-zinc-700"}`}>
-      {v.replace(/_/g, " ")}
-    </span>
-  );
-}
-
-function secPill(action?: string) {
-  if (!action) return <span className="text-zinc-600 text-xs">—</span>;
-  const colors: Record<string, string> = {
-    PASS: "bg-emerald-500/15 text-emerald-300",
-    FLAG: "bg-amber-500/15 text-amber-300",
-    BLOCK: "bg-red-500/15 text-red-300",
-  };
-  return (
-    <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${colors[action] ?? "bg-zinc-800 text-zinc-400"}`}>
-      {action}
-    </span>
-  );
-}
-
-function KpiCard({ label, value, sub, accent = "text-sky-400" }: { label: string; value: string | number; sub?: string; accent?: string }) {
-  return (
-    <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
-      <p className="text-xs text-zinc-500 uppercase tracking-widest mb-1">{label}</p>
-      <p className={`text-2xl font-black tabular-nums ${accent}`}>{value}</p>
-      {sub && <p className="text-xs text-zinc-600 mt-0.5">{sub}</p>}
-    </div>
-  );
-}
-
-function TimeAgo({ ts }: { ts: string }) {
-  try {
-    const diff = Date.now() - new Date(ts).getTime();
-    const s = Math.round(diff / 1000);
-    if (s < 60) return <span>{s}s ago</span>;
-    const m = Math.round(s / 60);
-    if (m < 60) return <span>{m}m ago</span>;
-    return <span>{Math.round(m / 60)}h ago</span>;
-  } catch {
-    return <span>—</span>;
-  }
-}
-
-// ─── Main Page ─────────────────────────────────────────────────────────────────
-
 export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [chunks, setChunks] = useState<AdminChunk[]>([]);
   const [audit, setAudit] = useState<AuditData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "chunks" | "queries" | "ingestions">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "queries" | "chunks" | "ingestions">("overview");
   const [chunkFilter, setChunkFilter] = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
 
@@ -151,7 +79,7 @@ export default function AdminPage() {
       if (sRes.ok) setStats(await sRes.json());
       if (cRes.ok) {
         const cd = await cRes.json();
-        setChunks(cd.chunks ?? []);
+        setChunks(cd.chunks || []);
       }
       if (aRes.ok) setAudit(await aRes.json());
     } catch {}
@@ -160,12 +88,15 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchAll();
-    const id = setInterval(fetchAll, 15000);
-    return () => clearInterval(id);
+    const timer = setInterval(fetchAll, 12000);
+    return () => clearInterval(timer);
   }, [fetchAll]);
 
   const handleClearLogs = useCallback(async () => {
-    if (!confirmClear) { setConfirmClear(true); return; }
+    if (!confirmClear) {
+      setConfirmClear(true);
+      return;
+    }
     try {
       await fetch("/api/admin/clear", { method: "POST" });
       setAudit(null);
@@ -179,343 +110,331 @@ export default function AdminPage() {
     : chunks;
 
   const quarantinedCount = chunks.filter((c) => c.is_quarantined || c.is_poisoned).length;
-  const cleanCount = chunks.length - quarantinedCount;
-
-  const queries = audit?.recent_queries ?? [];
+  const queries = audit?.recent_queries || [];
   const blockedQueries = queries.filter((q) => q.security_action === "BLOCK").length;
   const trustworthyQueries = queries.filter((q) => q.trust_verdict === "TRUSTWORTHY").length;
 
-  const tabs = [
-    { id: "overview" as const, label: "Overview" },
-    { id: "queries" as const, label: `Query Audit (${queries.length})` },
-    { id: "chunks" as const, label: `Chunks (${chunks.length})` },
-    { id: "ingestions" as const, label: `Ingestions (${audit?.recent_ingestions?.length ?? 0})` },
-  ];
-
   return (
-    <div className="min-h-screen bg-black relative">
-      <div className="fixed inset-0 pointer-events-none" style={{
-        background: "radial-gradient(ellipse 60% 40% at 20% 0%, rgba(129,140,248,0.06) 0%, transparent 70%)"
-      }} />
+    <div className="min-h-screen text-slate-100 relative cyber-grid">
+      <div className="fixed top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent z-50" />
 
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 border-b border-zinc-900 bg-black/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+      {/* Admin Nav */}
+      <header className="sticky top-0 z-40 bg-[#030305]/80 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2 text-zinc-500 hover:text-zinc-200 transition-colors text-sm">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-              Back
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 text-xs font-semibold text-zinc-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/[0.05]"
+            >
+              <span>← Back to Portal</span>
             </Link>
-            <div className="w-px h-5 bg-zinc-800" />
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
-                  <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+            <div className="h-4 w-[1px] bg-white/[0.1]" />
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white border border-white/20 shadow-[0_0_15px_rgba(99,102,241,0.3)]">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" />
+                  <rect x="14" y="3" width="7" height="7" />
+                  <rect x="14" y="14" width="7" height="7" />
+                  <rect x="3" y="14" width="7" height="7" />
                 </svg>
               </div>
-              <span className="font-black text-white text-sm">SENTINEL Admin</span>
-              {stats && (
-                <span className="text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded-md">v{stats.system_version}</span>
-              )}
+              <span className="font-extrabold text-sm tracking-wider text-white">SENTINEL AUDIT CONSOLE</span>
+              <span className="text-[10px] font-mono bg-zinc-900 border border-white/[0.08] px-2 py-0.5 rounded text-indigo-400">
+                v{stats?.system_version || "0.4.0"}
+              </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => { setLoading(true); fetchAll(); }} className="text-xs text-zinc-500 hover:text-zinc-300 border border-zinc-800 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
+
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => { setLoading(true); fetchAll(); }}
+              className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs font-semibold text-zinc-300 transition-all flex items-center gap-1.5"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
                 <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
               </svg>
-              Refresh
+              <span>Refresh</span>
             </button>
+
             <button
               onClick={handleClearLogs}
-              className={`text-xs border px-3 py-1.5 rounded-lg transition-colors ${confirmClear ? "text-red-300 border-red-500/50 bg-red-500/10" : "text-zinc-500 border-zinc-800 hover:border-zinc-600"}`}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                confirmClear
+                  ? "bg-rose-500/20 border-rose-500/50 text-rose-300"
+                  : "bg-white/[0.04] hover:bg-white/[0.08] border-white/[0.08] text-zinc-400"
+              }`}
             >
-              {confirmClear ? "Confirm Clear" : "Clear Logs"}
+              {confirmClear ? "Confirm Clear" : "Clear Audit Logs"}
             </button>
             {confirmClear && (
-              <button onClick={() => setConfirmClear(false)} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
+              <button
+                onClick={() => setConfirmClear(false)}
+                className="text-xs text-zinc-500 hover:text-zinc-300"
+              >
                 Cancel
               </button>
             )}
           </div>
         </div>
-      </nav>
+      </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {loading && !stats ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-4">
-            <div className="w-8 h-8 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
-            <p className="text-zinc-500 text-sm">Loading telemetry…</p>
-          </div>
-        ) : (
-          <>
-            {/* Tabs */}
-            <div className="flex gap-1 mb-6 border-b border-zinc-900 pb-0">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors -mb-px ${
-                    activeTab === tab.id
-                      ? "text-white border border-zinc-800 border-b-black bg-zinc-900"
-                      : "text-zinc-500 hover:text-zinc-300"
-                  }`}
-                >
-                  {tab.label}
-                </button>
+      {/* Admin Content */}
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        
+        {/* Navigation Tabs */}
+        <div className="flex gap-2 border-b border-white/[0.08] pb-3 text-xs font-semibold">
+          {[
+            { id: "overview", label: "Executive Telemetry" },
+            { id: "queries", label: `Query Audit Trail (${queries.length})` },
+            { id: "chunks", label: `Vector Store Explorer (${chunks.length})` },
+            { id: "ingestions", label: `Document Ingestions (${audit?.recent_ingestions?.length || 0})` },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`px-4 py-2 rounded-xl transition-all ${
+                activeTab === tab.id
+                  ? "bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 shadow-sm"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab 1: Overview */}
+        {activeTab === "overview" && stats && (
+          <div className="space-y-6">
+            
+            {/* System Info Card */}
+            <div className="glass-panel p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 cyber-dot" />
+                  <span className="font-extrabold text-sm tracking-wider text-white uppercase">{stats.status}</span>
+                  <span className="text-xs text-zinc-400">· {stats.pipeline_phase}</span>
+                </div>
+                <span className="text-[11px] font-mono text-zinc-400">{stats.vector_store_collection}</span>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs pt-2">
+                {[
+                  { label: "Active LLM Provider", value: stats.active_llm_provider.toUpperCase() },
+                  { label: "Generation Model", value: stats.active_llm_model },
+                  { label: "Dense Embedder", value: stats.embedding_model },
+                  { label: "Embedding Dimensions", value: `${stats.embedding_dimension} dimensions` },
+                ].map((item) => (
+                  <div key={item.label} className="p-3.5 rounded-xl bg-zinc-950/60 border border-white/[0.05]">
+                    <span className="text-[10px] text-zinc-400 uppercase font-semibold block">{item.label}</span>
+                    <span className="text-xs font-bold text-zinc-200 mt-1 block truncate">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Metric KPI Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "Indexed Chunks", val: stats.total_chunks_indexed, sub: `${stats.total_unique_documents} documents`, color: "text-cyan-400" },
+                { label: "Total Queries Logged", val: stats.total_queries_logged, sub: "End-to-end verified", color: "text-indigo-400" },
+                { label: "Average E2E Latency", val: `${stats.average_latency_ms.toFixed(0)} ms`, sub: `Min ${stats.min_latency_ms.toFixed(0)}ms · Max ${stats.max_latency_ms.toFixed(0)}ms`, color: "text-amber-400" },
+                { label: "Quarantined Chunks", val: quarantinedCount, sub: `${chunks.length - quarantinedCount} clean vectors`, color: quarantinedCount > 0 ? "text-rose-400" : "text-emerald-400" },
+              ].map((kpi) => (
+                <div key={kpi.label} className="glass-panel p-5 space-y-1">
+                  <p className="text-[10px] text-zinc-400 uppercase font-semibold tracking-wider">{kpi.label}</p>
+                  <p className={`text-2xl font-black font-mono ${kpi.color}`}>{kpi.val}</p>
+                  <p className="text-[11px] text-zinc-400">{kpi.sub}</p>
+                </div>
               ))}
             </div>
 
-            {/* Overview Tab */}
-            {activeTab === "overview" && stats && (
-              <div className="space-y-6">
-                {/* System info */}
-                <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-5">
-                  <div className="flex flex-wrap items-center gap-3 mb-4">
-                    <span className="flex items-center gap-1.5 text-sm font-bold text-white">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 pulse-dot" />
-                      {stats.status.toUpperCase()}
-                    </span>
-                    <span className="text-xs text-zinc-500 bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded-md">{stats.pipeline_phase}</span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                    {[
-                      { label: "LLM Provider", value: stats.active_llm_provider.toUpperCase() },
-                      { label: "LLM Model", value: stats.active_llm_model },
-                      { label: "Embedding Model", value: stats.embedding_model.split("/").pop() ?? stats.embedding_model },
-                      { label: "Embedding Dim", value: `${stats.embedding_dimension}d` },
-                      { label: "Vector Collection", value: stats.vector_store_collection },
-                      { label: "Vector Store Path", value: stats.vector_store_path.split("\\").pop() ?? stats.vector_store_path },
-                    ].map(({ label, value }) => (
-                      <div key={label} className="flex flex-col gap-0.5">
-                        <span className="text-zinc-600">{label}</span>
-                        <span className="text-zinc-300 font-medium truncate">{value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* KPI grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <KpiCard label="Chunks Indexed" value={stats.total_chunks_indexed} sub={`${stats.total_unique_documents} docs`} accent="text-sky-400" />
-                  <KpiCard label="Queries Logged" value={stats.total_queries_logged} accent="text-indigo-400" />
-                  <KpiCard label="Avg Latency" value={`${stats.average_latency_ms}ms`} sub={`min ${stats.min_latency_ms}ms · max ${stats.max_latency_ms}ms`} accent="text-amber-400" />
-                  <KpiCard label="Quarantined" value={quarantinedCount} sub={`${cleanCount} clean`} accent={quarantinedCount > 0 ? "text-red-400" : "text-emerald-400"} />
-                </div>
-
-                {/* Security + Trust KPIs */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <KpiCard label="TRUSTWORTHY" value={trustworthyQueries} sub={`of ${queries.length} queries`} accent="text-emerald-400" />
-                  <KpiCard label="BLOCKED Queries" value={blockedQueries} accent="text-red-400" />
-                  <KpiCard label="Total Ingestions" value={audit?.recent_ingestions?.length ?? 0} accent="text-teal-400" />
-                  <KpiCard
-                    label="Trustworthy Rate"
-                    value={queries.length > 0 ? `${Math.round((trustworthyQueries / queries.length) * 100)}%` : "—"}
-                    accent="text-purple-400"
-                  />
-                </div>
-
-                {/* Trust distribution mini-chart */}
-                {queries.length > 0 && (() => {
-                  const verdictCounts: Record<string, number> = {};
-                  queries.forEach((q) => {
-                    const v = q.trust_verdict ?? "UNKNOWN";
-                    verdictCounts[v] = (verdictCounts[v] ?? 0) + 1;
-                  });
-                  const colors: Record<string, string> = {
-                    TRUSTWORTHY: "bg-emerald-500",
-                    PARTIALLY_SUPPORTED: "bg-amber-500",
-                    INSUFFICIENTLY_SUPPORTED: "bg-orange-500",
-                    CONTRADICTED: "bg-red-600",
-                    POTENTIALLY_HALLUCINATED: "bg-pink-500",
-                    ABSTAINED: "bg-zinc-500",
-                    UNKNOWN: "bg-zinc-700",
-                  };
-                  return (
-                    <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-5">
-                      <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Trust Verdict Distribution</h3>
-                      <div className="flex h-6 rounded-full overflow-hidden gap-0.5">
-                        {Object.entries(verdictCounts).map(([v, count]) => (
-                          <div
-                            key={v}
-                            title={`${v}: ${count}`}
-                            className={`${colors[v] ?? "bg-zinc-700"} transition-all`}
-                            style={{ width: `${(count / queries.length) * 100}%`, minWidth: "2px" }}
-                          />
-                        ))}
-                      </div>
-                      <div className="flex flex-wrap gap-3 mt-3">
-                        {Object.entries(verdictCounts).map(([v, count]) => (
-                          <div key={v} className="flex items-center gap-1.5 text-xs">
-                            <div className={`w-2 h-2 rounded-sm ${colors[v] ?? "bg-zinc-700"}`} />
-                            <span className="text-zinc-500">{v.replace(/_/g, " ")}</span>
-                            <span className="text-zinc-400 font-bold">{count}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
+            {/* Security KPI Row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="glass-panel p-5 space-y-1">
+                <p className="text-[10px] text-zinc-400 uppercase font-semibold tracking-wider">Trustworthy Queries</p>
+                <p className="text-2xl font-black font-mono text-emerald-400">{trustworthyQueries}</p>
+                <p className="text-[11px] text-zinc-400">Validated by DeBERTa NLI</p>
               </div>
-            )}
-
-            {/* Query Audit Tab */}
-            {activeTab === "queries" && (
-              <div className="space-y-3">
-                {queries.length === 0 ? (
-                  <div className="text-center py-16 text-zinc-600 text-sm">No queries logged yet. Ask a question from the main portal.</div>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-zinc-800">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-zinc-800 bg-zinc-900/80">
-                          <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider w-8">#</th>
-                          <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Query</th>
-                          <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Trust</th>
-                          <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Verdict</th>
-                          <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Security</th>
-                          <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Latency</th>
-                          <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">When</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-900">
-                        {queries.map((q) => (
-                          <tr key={q.id} className="hover:bg-zinc-900/40 transition-colors group">
-                            <td className="px-4 py-3 text-zinc-700 font-mono">{q.id}</td>
-                            <td className="px-4 py-3 max-w-xs">
-                              <p className="text-zinc-300 truncate" title={q.query}>{q.query}</p>
-                              <p className="text-zinc-600 truncate mt-0.5">{q.answer?.slice(0, 60)}…</p>
-                            </td>
-                            <td className="px-4 py-3">
-                              {q.trust_score !== undefined ? (
-                                <span className={`font-bold tabular-nums ${trustColor(q.trust_score)}`}>
-                                  {Math.round(q.trust_score * 100)}%
-                                </span>
-                              ) : (
-                                <span className="text-zinc-600">—</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">{verdictPill(q.trust_verdict)}</td>
-                            <td className="px-4 py-3">{secPill(q.security_action)}</td>
-                            <td className="px-4 py-3 tabular-nums text-zinc-500">{q.latency_ms?.toFixed(0)}ms</td>
-                            <td className="px-4 py-3 text-zinc-600 whitespace-nowrap">
-                              <TimeAgo ts={q.timestamp} />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+              <div className="glass-panel p-5 space-y-1">
+                <p className="text-[10px] text-zinc-400 uppercase font-semibold tracking-wider">Blocked Injection Queries</p>
+                <p className="text-2xl font-black font-mono text-rose-400">{blockedQueries}</p>
+                <p className="text-[11px] text-zinc-400">Neutralized at Input Barrier</p>
               </div>
-            )}
-
-            {/* Chunks Tab */}
-            {activeTab === "chunks" && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="text"
-                    placeholder="Filter by filename…"
-                    value={chunkFilter}
-                    onChange={(e) => setChunkFilter(e.target.value)}
-                    className="bg-zinc-900/80 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-sky-500/50 w-64"
-                  />
-                  <span className="text-xs text-zinc-600">{filteredChunks.length} chunks shown</span>
-                  {quarantinedCount > 0 && (
-                    <span className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 px-2 py-1 rounded-lg">
-                      ⚠ {quarantinedCount} quarantined
-                    </span>
-                  )}
-                </div>
-                <div className="overflow-x-auto rounded-xl border border-zinc-800">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-zinc-800 bg-zinc-900/80">
-                        <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Chunk ID</th>
-                        <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Source</th>
-                        <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Index</th>
-                        <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Characters</th>
-                        <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-900">
-                      {filteredChunks.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="px-4 py-10 text-center text-zinc-600">No chunks indexed yet.</td>
-                        </tr>
-                      ) : (
-                        filteredChunks.map((c) => (
-                          <tr key={c.chunk_id} className={`hover:bg-zinc-900/40 transition-colors ${c.is_quarantined || c.is_poisoned ? "bg-red-500/5" : ""}`}>
-                            <td className="px-4 py-2.5 font-mono text-zinc-600 max-w-32 truncate" title={c.chunk_id}>{c.chunk_id.slice(0, 12)}…</td>
-                            <td className="px-4 py-2.5 text-sky-400">{c.source_filename}</td>
-                            <td className="px-4 py-2.5 text-zinc-500">{c.chunk_index}</td>
-                            <td className="px-4 py-2.5 text-zinc-500 tabular-nums">{c.character_count?.toLocaleString()}</td>
-                            <td className="px-4 py-2.5">
-                              {c.is_quarantined || c.is_poisoned ? (
-                                <span className="text-red-300 bg-red-500/15 border border-red-500/30 px-2 py-0.5 rounded text-xs font-bold">
-                                  {c.is_poisoned ? "POISONED" : "QUARANTINED"}
-                                </span>
-                              ) : (
-                                <span className="text-emerald-400 text-xs font-medium">✓ Clean</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+              <div className="glass-panel p-5 space-y-1">
+                <p className="text-[10px] text-zinc-400 uppercase font-semibold tracking-wider">Grounding Success Rate</p>
+                <p className="text-2xl font-black font-mono text-teal-400">
+                  {queries.length > 0 ? `${Math.round((trustworthyQueries / queries.length) * 100)}%` : "100%"}
+                </p>
+                <p className="text-[11px] text-zinc-400">Confidence entailed</p>
               </div>
-            )}
-
-            {/* Ingestions Tab */}
-            {activeTab === "ingestions" && (
-              <div className="space-y-3">
-                {!audit?.recent_ingestions?.length ? (
-                  <div className="text-center py-16 text-zinc-600 text-sm">No documents ingested yet.</div>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-zinc-800">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-zinc-800 bg-zinc-900/80">
-                          <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Filename</th>
-                          <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Type</th>
-                          <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Characters</th>
-                          <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">Chunks</th>
-                          <th className="text-left px-4 py-3 text-zinc-500 font-semibold uppercase tracking-wider">When</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-900">
-                        {audit.recent_ingestions.map((ing, i) => (
-                          <tr key={i} className="hover:bg-zinc-900/40 transition-colors">
-                            <td className="px-4 py-3 text-sky-400 font-medium">{ing.filename}</td>
-                            <td className="px-4 py-3 text-zinc-500 uppercase font-mono">{ing.file_type}</td>
-                            <td className="px-4 py-3 text-zinc-500 tabular-nums">{ing.character_count?.toLocaleString()}</td>
-                            <td className="px-4 py-3 text-zinc-300 font-bold">{ing.chunks_created}</td>
-                            <td className="px-4 py-3 text-zinc-600 whitespace-nowrap"><TimeAgo ts={ing.timestamp} /></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+              <div className="glass-panel p-5 space-y-1">
+                <p className="text-[10px] text-zinc-400 uppercase font-semibold tracking-wider">Total Ingestions</p>
+                <p className="text-2xl font-black font-mono text-purple-400">{audit?.recent_ingestions?.length || 0}</p>
+                <p className="text-[11px] text-zinc-400">Corpus upload events</p>
               </div>
-            )}
-          </>
+            </div>
+
+          </div>
         )}
-      </main>
 
-      <footer className="border-t border-zinc-900 mt-12 py-6">
-        <div className="max-w-7xl mx-auto px-4 text-xs text-zinc-700">
-          SENTINEL Admin Console · Phase 4: Trust & Security Integrated · v{stats?.system_version ?? "0.4.0"}
-        </div>
-      </footer>
+        {/* Tab 2: Queries */}
+        {activeTab === "queries" && (
+          <div className="glass-panel overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-white/[0.08] bg-white/[0.02] text-zinc-400 uppercase text-[10px] font-semibold tracking-wider">
+                    <th className="py-3 px-4">#</th>
+                    <th className="py-3 px-4">Query</th>
+                    <th className="py-3 px-4">Trust Score</th>
+                    <th className="py-3 px-4">Verdict</th>
+                    <th className="py-3 px-4">Security</th>
+                    <th className="py-3 px-4">Latency</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.05]">
+                  {queries.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-zinc-400">No queries logged yet.</td>
+                    </tr>
+                  ) : (
+                    queries.map((q) => (
+                      <tr key={q.id} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="py-3 px-4 font-mono text-zinc-400">{q.id}</td>
+                        <td className="py-3 px-4 max-w-sm">
+                          <p className="font-semibold text-zinc-200 truncate">{q.query}</p>
+                          <p className="text-[11px] text-zinc-400 truncate mt-0.5">{q.answer}</p>
+                        </td>
+                        <td className="py-3 px-4 font-mono font-bold">
+                          {q.trust_score !== undefined ? (
+                            <span className={q.trust_score >= 0.75 ? "text-emerald-400" : q.trust_score >= 0.5 ? "text-amber-400" : "text-rose-400"}>
+                              {Math.round(q.trust_score * 100)}%
+                            </span>
+                          ) : (
+                            <span className="text-zinc-600">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/[0.05] border border-white/[0.08]">
+                            {q.trust_verdict || "PASS"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            q.security_action === "BLOCK"
+                              ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                              : "bg-emerald-500/10 text-emerald-300"
+                          }`}>
+                            {q.security_action || "PASS"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-zinc-400">{q.latency_ms.toFixed(0)} ms</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: Chunks */}
+        {activeTab === "chunks" && (
+          <div className="glass-panel p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <input
+                type="text"
+                placeholder="Search chunks by filename..."
+                value={chunkFilter}
+                onChange={(e) => setChunkFilter(e.target.value)}
+                className="w-72 rounded-lg bg-zinc-950/80 border border-white/[0.08] px-3.5 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500/60"
+              />
+              <span className="text-xs text-zinc-400">{filteredChunks.length} chunks displayed</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-white/[0.08] text-zinc-400 uppercase text-[10px] font-semibold">
+                    <th className="py-3 px-4">Chunk ID</th>
+                    <th className="py-3 px-4">Source File</th>
+                    <th className="py-3 px-4">Index</th>
+                    <th className="py-3 px-4">Chars</th>
+                    <th className="py-3 px-4">Integrity Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.05]">
+                  {filteredChunks.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-zinc-400">No chunks indexed yet.</td>
+                    </tr>
+                  ) : (
+                    filteredChunks.map((c) => (
+                      <tr key={c.chunk_id} className="hover:bg-white/[0.02]">
+                        <td className="py-3 px-4 font-mono text-zinc-400">{c.chunk_id.slice(0, 16)}...</td>
+                        <td className="py-3 px-4 font-semibold text-cyan-400">{c.source_filename}</td>
+                        <td className="py-3 px-4 font-mono text-zinc-400">{c.chunk_index}</td>
+                        <td className="py-3 px-4 font-mono text-zinc-400">{c.character_count}</td>
+                        <td className="py-3 px-4">
+                          {c.is_quarantined || c.is_poisoned ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                              QUARANTINED
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400">
+                              VERIFIED CLEAN
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 4: Ingestions */}
+        {activeTab === "ingestions" && (
+          <div className="glass-panel overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-white/[0.08] bg-white/[0.02] text-zinc-400 uppercase text-[10px] font-semibold tracking-wider">
+                    <th className="py-3 px-4">Document File</th>
+                    <th className="py-3 px-4">File Type</th>
+                    <th className="py-3 px-4">Character Volume</th>
+                    <th className="py-3 px-4">Generated Vectors</th>
+                    <th className="py-3 px-4">Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.05]">
+                  {!audit?.recent_ingestions?.length ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-zinc-400">No documents ingested in this session.</td>
+                    </tr>
+                  ) : (
+                    audit.recent_ingestions.map((ing, idx) => (
+                      <tr key={idx} className="hover:bg-white/[0.02]">
+                        <td className="py-3 px-4 font-semibold text-zinc-200">{ing.filename}</td>
+                        <td className="py-3 px-4 font-mono text-cyan-400 uppercase">{ing.file_type}</td>
+                        <td className="py-3 px-4 font-mono text-zinc-400">{ing.character_count.toLocaleString()}</td>
+                        <td className="py-3 px-4 font-mono text-indigo-400 font-bold">{ing.chunks_created}</td>
+                        <td className="py-3 px-4 font-mono text-zinc-400">{new Date(ing.timestamp).toLocaleTimeString()}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+      </main>
     </div>
   );
 }
-

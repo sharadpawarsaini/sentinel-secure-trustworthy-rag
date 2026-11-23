@@ -3,14 +3,14 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// ─── Interfaces ────────────────────────────────────────────────────────────────
 
 interface RetrievedChunk {
   chunk_id: string;
   source_filename: string;
   chunk_index: number;
   similarity_score: number;
-  text_snippet: string;
+  text: string;
 }
 
 interface NliClaim {
@@ -52,152 +52,144 @@ interface QueryResponse {
   nli_claims?: NliClaim[];
   trust_breakdown?: TrustBreakdown;
   telemetry?: Telemetry;
-  model_used?: string;
-  provider_used?: string;
+  model?: string;
+  provider?: string;
 }
 
 interface HealthResponse {
   status: string;
   llm_provider: string;
   llm_model: string;
-  chunks_indexed: number;
+  total_chunks: number;
+  pipeline_phase: string;
 }
 
-interface Document {
+interface DocumentItem {
   filename: string;
   chunk_count: number;
-  created_at?: string;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-function trustColor(score: number): string {
-  if (score >= 0.75) return "text-emerald-400";
-  if (score >= 0.50) return "text-amber-400";
-  return "text-red-400";
+function getVerdictTheme(verdict: string) {
+  switch (verdict) {
+    case "TRUSTWORTHY":
+      return {
+        badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]",
+        border: "border-emerald-500/30",
+        meter: "from-emerald-500 to-teal-400",
+        text: "text-emerald-400",
+        label: "TRUSTWORTHY",
+        icon: "✓"
+      };
+    case "PARTIALLY_SUPPORTED":
+      return {
+        badge: "bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]",
+        border: "border-amber-500/30",
+        meter: "from-amber-500 to-orange-400",
+        text: "text-amber-400",
+        label: "PARTIALLY SUPPORTED",
+        icon: "⚠"
+      };
+    case "INSUFFICIENTLY_SUPPORTED":
+      return {
+        badge: "bg-orange-500/10 text-orange-400 border-orange-500/30 shadow-[0_0_15px_rgba(249,115,22,0.2)]",
+        border: "border-orange-500/30",
+        meter: "from-orange-500 to-amber-600",
+        text: "text-orange-400",
+        label: "INSUFFICIENT EVIDENCE",
+        icon: "○"
+      };
+    case "CONTRADICTED":
+      return {
+        badge: "bg-rose-500/10 text-rose-400 border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.25)]",
+        border: "border-rose-500/30",
+        meter: "from-rose-500 to-red-600",
+        text: "text-rose-400",
+        label: "CONTRADICTED BY CONTEXT",
+        icon: "✕"
+      };
+    case "POTENTIALLY_HALLUCINATED":
+      return {
+        badge: "bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/30 shadow-[0_0_15px_rgba(217,70,239,0.25)]",
+        border: "border-fuchsia-500/30",
+        meter: "from-fuchsia-500 to-pink-500",
+        text: "text-fuchsia-400",
+        label: "POTENTIAL HALLUCINATION",
+        icon: "⚡"
+      };
+    default:
+      return {
+        badge: "bg-zinc-500/10 text-zinc-400 border-zinc-500/30",
+        border: "border-zinc-500/30",
+        meter: "from-zinc-500 to-zinc-400",
+        text: "text-zinc-400",
+        label: verdict || "EVALUATING",
+        icon: "•"
+      };
+  }
 }
 
-function trustBg(score: number): string {
-  if (score >= 0.75) return "bg-emerald-500";
-  if (score >= 0.50) return "bg-amber-500";
-  return "bg-red-500";
-}
-
-function trustGlow(score: number): string {
-  if (score >= 0.75) return "glow-green";
-  if (score >= 0.50) return "glow-amber";
-  return "glow-red";
-}
-
-function verdictBadge(verdict: string) {
-  const map: Record<string, { color: string; bg: string; label: string }> = {
-    TRUSTWORTHY: { color: "text-emerald-300", bg: "bg-emerald-500/20 border-emerald-500/40", label: "✓ TRUSTWORTHY" },
-    PARTIALLY_SUPPORTED: { color: "text-amber-300", bg: "bg-amber-500/20 border-amber-500/40", label: "⚠ PARTIALLY SUPPORTED" },
-    INSUFFICIENTLY_SUPPORTED: { color: "text-orange-300", bg: "bg-orange-500/20 border-orange-500/40", label: "○ INSUFFICIENTLY SUPPORTED" },
-    CONTRADICTED: { color: "text-red-300", bg: "bg-red-500/20 border-red-500/40", label: "✕ CONTRADICTED" },
-    POTENTIALLY_HALLUCINATED: { color: "text-pink-300", bg: "bg-pink-500/20 border-pink-500/40", label: "⚡ POTENTIALLY HALLUCINATED" },
-    ABSTAINED: { color: "text-zinc-300", bg: "bg-zinc-500/20 border-zinc-500/40", label: "— ABSTAINED" },
-  };
-  const v = map[verdict] ?? { color: "text-zinc-300", bg: "bg-zinc-800 border-zinc-700", label: verdict };
+function getSecurityBadge(action: string) {
+  if (action === "BLOCK") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 border border-rose-500/40 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.25)]">
+        <span className="w-1.5 h-1.5 rounded-full bg-rose-400 cyber-dot" />
+        SECURITY BLOCK
+      </span>
+    );
+  }
+  if (action === "FLAG") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 border border-amber-500/40 text-amber-300">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 cyber-dot" />
+        SECURITY FLAG
+      </span>
+    );
+  }
   return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border tracking-wider ${v.color} ${v.bg}`}>
-      {v.label}
+    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 cyber-dot" />
+      SECURITY PASS
     </span>
   );
 }
 
-function securityBadge(action: string) {
-  const map: Record<string, { color: string; bg: string }> = {
-    PASS: { color: "text-emerald-300", bg: "bg-emerald-500/15 border-emerald-500/35" },
-    FLAG: { color: "text-amber-300", bg: "bg-amber-500/15 border-amber-500/35" },
-    BLOCK: { color: "text-red-300", bg: "bg-red-500/15 border-red-500/35" },
-  };
-  const s = map[action] ?? { color: "text-zinc-300", bg: "bg-zinc-800 border-zinc-600" };
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border tracking-wider ${s.color} ${s.bg}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${action === "PASS" ? "bg-emerald-400" : action === "FLAG" ? "bg-amber-400" : "bg-red-400"} pulse-dot`} />
-      {action}
-    </span>
-  );
-}
-
-function nliVerdictColor(verdict: string): string {
-  if (verdict === "ENTAILED") return "text-emerald-400";
-  if (verdict === "CONTRADICTION") return "text-red-400";
-  return "text-zinc-400";
-}
-
-// ─── Sub-components ────────────────────────────────────────────────────────────
-
-function TrustMeter({ score }: { score: number }) {
-  const pct = Math.round(score * 100);
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex justify-between items-center">
-        <span className="text-xs text-zinc-400 font-medium uppercase tracking-widest">Trust Score</span>
-        <span className={`text-2xl font-black tabular-nums ${trustColor(score)}`}>{pct}%</span>
-      </div>
-      <div className="h-2.5 w-full bg-zinc-800 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-1000 ease-out ${trustBg(score)}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function BreakdownBar({ label, value, color = "bg-sky-500" }: { label: string; value: number; color?: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs text-zinc-500 w-36 shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.round(value * 100)}%` }} />
-      </div>
-      <span className="text-xs tabular-nums text-zinc-400 w-10 text-right">{Math.round(value * 100)}%</span>
-    </div>
-  );
-}
-
-function LatencyBadge({ label, ms }: { label: string; ms?: number }) {
-  if (ms === undefined) return null;
-  return (
-    <div className="flex flex-col items-center gap-1 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg">
-      <span className="text-xs text-zinc-500">{label}</span>
-      <span className="text-sm font-bold text-sky-400 tabular-nums">{ms.toFixed(0)}ms</span>
-    </div>
-  );
-}
-
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Component ─────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [documents, setDocuments] = useState<Document[]>([]);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [query, setQuery] = useState("");
   const [topK, setTopK] = useState(4);
   const [result, setResult] = useState<QueryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadMsg, setUploadMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [uploadFeedback, setUploadFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const resultRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState<"claims" | "evidence" | "telemetry">("evidence");
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const responseRef = useRef<HTMLDivElement>(null);
 
   const fetchHealth = useCallback(async () => {
     try {
-      const r = await fetch("/api/health");
-      if (r.ok) setHealth(await r.json());
+      const res = await fetch("/api/health");
+      if (res.ok) setHealth(await res.json());
     } catch {}
   }, []);
 
   const fetchDocuments = useCallback(async () => {
     try {
-      const r = await fetch("/api/documents");
-      if (r.ok) {
-        const d = await r.json();
-        setDocuments(d.documents ?? []);
+      const res = await fetch("/api/documents");
+      if (res.ok) {
+        const data = await res.json();
+        // data.unique_documents is list of filenames, data.total_chunks
+        const docs = (data.unique_documents || []).map((name: string) => ({
+          filename: name,
+          chunk_count: data.total_chunks || 0
+        }));
+        setDocuments(docs);
       }
     } catch {}
   }, []);
@@ -205,58 +197,74 @@ export default function HomePage() {
   useEffect(() => {
     fetchHealth();
     fetchDocuments();
-    const id = setInterval(() => { fetchHealth(); fetchDocuments(); }, 10000);
-    return () => clearInterval(id);
+    const timer = setInterval(() => {
+      fetchHealth();
+      fetchDocuments();
+    }, 12000);
+    return () => clearInterval(timer);
   }, [fetchHealth, fetchDocuments]);
 
-  const handleUpload = useCallback(async (file: File) => {
+  const handleUploadFile = useCallback(async (file: File) => {
     setUploading(true);
-    setUploadMsg(null);
-    const form = new FormData();
-    form.append("file", file);
+    setUploadFeedback(null);
+    const formData = new FormData();
+    formData.append("file", file);
+
     try {
-      const r = await fetch("/api/documents/upload", { method: "POST", body: form });
-      const j = await r.json();
-      if (r.ok) {
-        setUploadMsg({ type: "ok", text: `✓ Indexed "${file.name}" — ${j.chunks_created ?? "?"} chunks` });
+      const res = await fetch("/api/documents/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUploadFeedback({
+          type: "success",
+          msg: `Indexed "${file.name}" successfully (${data.chunks_created} chunks generated)`
+        });
         fetchDocuments();
         fetchHealth();
       } else {
-        setUploadMsg({ type: "err", text: j.detail ?? "Upload failed" });
+        setUploadFeedback({
+          type: "error",
+          msg: data.detail || "Failed to process document"
+        });
       }
-    } catch (e) {
-      setUploadMsg({ type: "err", text: `Network error: ${e}` });
+    } catch (err) {
+      setUploadFeedback({ type: "error", msg: `Upload error: ${err}` });
     } finally {
       setUploading(false);
     }
   }, [fetchDocuments, fetchHealth]);
 
-  const handleAsk = useCallback(async () => {
+  const handleExecuteQuery = useCallback(async () => {
     if (!query.trim()) return;
     setLoading(true);
     setError(null);
     setResult(null);
+
     try {
-      const r = await fetch("/api/rag/query", {
+      const res = await fetch("/api/rag/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: query.trim(), top_k: topK }),
       });
-      const j = await r.json();
-      if (r.ok) {
-        setResult(j);
-        setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      const data = await res.json();
+      if (res.ok) {
+        setResult(data);
+        setTimeout(() => {
+          responseRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }, 150);
       } else {
-        setError(j.detail ?? "Query failed");
+        setError(data.detail || "Pipeline evaluation failed");
       }
-    } catch (e) {
-      setError(`Network error: ${e}`);
+    } catch (err) {
+      setError(`Network error: ${err}`);
     } finally {
       setLoading(false);
     }
   }, [query, topK]);
 
-  const handleDeleteDoc = useCallback(async (filename: string) => {
+  const handleDeleteDocument = useCallback(async (filename: string) => {
     try {
       await fetch(`/api/documents/${encodeURIComponent(filename)}`, { method: "DELETE" });
       fetchDocuments();
@@ -264,157 +272,223 @@ export default function HomePage() {
     } catch {}
   }, [fetchDocuments, fetchHealth]);
 
-  return (
-    <div className="min-h-screen bg-black relative overflow-x-hidden">
-      {/* Background radial gradient */}
-      <div className="fixed inset-0 pointer-events-none" style={{
-        background: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(56,189,248,0.07) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 80% 80%, rgba(129,140,248,0.05) 0%, transparent 70%)"
-      }} />
+  const verdictTheme = result ? getVerdictTheme(result.is_abstained ? "ABSTAINED" : result.trust_verdict) : null;
+  const trustPct = result ? Math.round((result.trust_score || 0) * 100) : 0;
 
-      {/* Top Nav */}
-      <nav className="sticky top-0 z-50 border-b border-zinc-900 bg-black/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+  return (
+    <div className="min-h-screen text-slate-100 relative cyber-grid">
+      {/* Top Ambient Glow Bar */}
+      <div className="fixed top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent z-50" />
+
+      {/* Modern Navigation Header */}
+      <header className="sticky top-0 z-40 bg-[#030305]/80 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* Shield icon */}
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.35)] border border-white/20">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
             </div>
             <div>
-              <span className="font-black text-white tracking-wide text-sm">SENTINEL</span>
-              <span className="ml-2 text-xs text-zinc-500 font-medium">Secure & Trustworthy RAG · Phase 4</span>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-base tracking-wider text-white">SENTINEL</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                  PHASE 4 ACTIVE
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-400 font-medium">Trust-Aware Grounded RAG & Cybersecurity Architecture</p>
             </div>
           </div>
+
           <div className="flex items-center gap-3">
             {health ? (
-              <>
-                <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot" />
-                  Connected
-                </span>
-                <span className="hidden sm:block text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded-md">
-                  {health.llm_provider?.toUpperCase()} · {health.llm_model}
-                </span>
-                <span className="text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded-md">
-                  {health.chunks_indexed} chunks
-                </span>
-              </>
+              <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-zinc-900/80 border border-white/[0.08] text-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 cyber-dot" />
+                <span className="text-zinc-400 font-medium">{health.llm_provider?.toUpperCase()} · {health.llm_model}</span>
+                <span className="text-zinc-600">|</span>
+                <span className="text-cyan-400 font-semibold">{health.total_chunks} chunks</span>
+              </div>
             ) : (
-              <span className="flex items-center gap-1.5 text-xs text-red-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                Connecting…
-              </span>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/80 border border-white/[0.08] text-xs text-amber-400">
+                <span className="w-2 h-2 rounded-full bg-amber-400 cyber-dot" />
+                Connecting to backend...
+              </div>
             )}
-            <Link href="/admin" className="text-xs font-semibold text-sky-400 border border-sky-500/30 px-3 py-1 rounded-md hover:bg-sky-500/10 transition-colors">
-              Admin →
+
+            <Link
+              href="/admin"
+              className="group flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.1] text-xs font-semibold text-zinc-200 hover:text-white transition-all shadow-sm hover:border-cyan-500/40"
+            >
+              <span>Admin Console</span>
+              <span className="text-zinc-500 group-hover:translate-x-0.5 group-hover:text-cyan-400 transition-all">→</span>
             </Link>
           </div>
         </div>
-      </nav>
+      </header>
 
-      {/* Phase indicator banner */}
-      <div className="border-b border-zinc-900 bg-zinc-950/50">
-        <div className="max-w-7xl mx-auto px-4 py-2 text-xs text-zinc-500 font-mono">
-          <span className="text-zinc-600">Pipeline: </span>
-          {["User Input", "Input Security", "Retrieval", "Context Security", "LLM Generation", "NLI Trust Eval", "Mitigation", "Final Response"].map((step, i, arr) => (
-            <span key={step}>
-              <span className="text-zinc-400">{step}</span>
-              {i < arr.length - 1 && <span className="text-zinc-700 mx-1">→</span>}
-            </span>
-          ))}
-        </div>
-      </div>
+      {/* Main Container */}
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Pipeline Architecture Stage Indicator */}
+        <section className="glass-panel p-3.5 border-white/[0.05]">
+          <div className="flex items-center justify-between overflow-x-auto text-xs font-medium gap-2 text-zinc-400">
+            {[
+              { id: "1", title: "Input Sanitization", sub: "Injection Guard" },
+              { id: "2", title: "Vector Retrieval", sub: "Dense MiniLM" },
+              { id: "3", title: "Context Isolation", sub: "Poison Quarantine" },
+              { id: "4", title: "LLM Generation", sub: "Gemini / Ollama" },
+              { id: "5", title: "NLI Verification", sub: "DeBERTa Cross-Encoder" },
+              { id: "6", title: "Trust Scoring", sub: "Adaptive Abstention" },
+            ].map((step, idx) => (
+              <div key={step.id} className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-950/60 border border-white/[0.06]">
+                  <span className="w-5 h-5 rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-mono text-[10px] flex items-center justify-center font-bold">
+                    0{step.id}
+                  </span>
+                  <div>
+                    <p className="text-[11px] font-semibold text-zinc-200">{step.title}</p>
+                    <p className="text-[9px] text-zinc-400">{step.sub}</p>
+                  </div>
+                </div>
+                {idx < 5 && <span className="text-zinc-700 text-xs font-bold">→</span>}
+              </div>
+            ))}
+          </div>
+        </section>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Left Column: Upload + Docs */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Upload card */}
-            <div className="sentinel-card p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-sky-400">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-                <h2 className="text-sm font-bold text-white uppercase tracking-widest">Ingest Document</h2>
+        {/* 2-Column Responsive Dashboard */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* Left Column: Knowledge Management (4 cols) */}
+          <div className="lg:col-span-4 space-y-6">
+            
+            {/* Document Upload Widget */}
+            <div className="glass-panel p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-cyan-500/10 flex items-center justify-center text-cyan-400 border border-cyan-500/20">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                  </div>
+                  <h2 className="text-xs font-bold tracking-widest text-zinc-300 uppercase">Knowledge Ingestion</h2>
+                </div>
+                <span className="text-[10px] text-zinc-400 font-mono">PDF, DOCX, TXT</span>
               </div>
 
+              {/* Drag Drop Area */}
               <div
-                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200 ${dragOver ? "border-sky-400 bg-sky-500/10" : "border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/30"}`}
-                onClick={() => fileRef.current?.click()}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
+                className={`border-2 border-dashed rounded-xl p-7 text-center cursor-pointer transition-all duration-300 flex flex-col items-center justify-center gap-3 ${
+                  dragActive 
+                    ? "border-cyan-400 bg-cyan-500/10 shadow-[0_0_25px_rgba(6,182,212,0.2)]" 
+                    : "border-white/[0.08] hover:border-cyan-500/40 bg-zinc-950/40 hover:bg-zinc-900/40"
+                }`}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                onDragLeave={() => setDragActive(false)}
                 onDrop={(e) => {
                   e.preventDefault();
-                  setDragOver(false);
+                  setDragActive(false);
                   const f = e.dataTransfer.files[0];
-                  if (f) handleUpload(f);
+                  if (f) handleUploadFile(f);
                 }}
               >
                 {uploading ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-8 h-8 rounded-full border-2 border-sky-400 border-t-transparent animate-spin" />
-                    <span className="text-sm text-zinc-400">Indexing…</span>
+                  <div className="flex flex-col items-center gap-3 py-2">
+                    <div className="w-8 h-8 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+                    <p className="text-xs text-zinc-300 font-medium">Extracting & Vectorizing...</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-sky-400">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                        <polyline points="17 8 12 3 7 8" />
-                        <line x1="12" y1="3" x2="12" y2="15" />
+                  <>
+                    <div className="w-12 h-12 rounded-2xl bg-zinc-900/80 border border-white/[0.08] flex items-center justify-center text-zinc-400 group-hover:text-cyan-400 transition-colors shadow-inner">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="12" y1="18" x2="12" y2="12" />
+                        <line x1="9" y1="15" x2="15" y2="15" />
                       </svg>
                     </div>
                     <div>
-                      <p className="text-sm text-zinc-300 font-medium">Drop file or click to browse</p>
-                      <p className="text-xs text-zinc-600 mt-1">PDF · DOCX · TXT</p>
+                      <p className="text-xs font-semibold text-zinc-200">Click to upload or drag & drop</p>
+                      <p className="text-[11px] text-zinc-400 mt-1">Inspected for indirect poisoning & prompt injection</p>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
-              <input ref={fileRef} type="file" accept=".pdf,.docx,.txt" className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }} />
 
-              {uploadMsg && (
-                <div className={`mt-3 text-xs px-3 py-2 rounded-lg border ${uploadMsg.type === "ok" ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/30" : "text-red-300 bg-red-500/10 border-red-500/30"}`}>
-                  {uploadMsg.text}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.docx,.txt"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUploadFile(f);
+                  e.target.value = "";
+                }}
+              />
+
+              {uploadFeedback && (
+                <div className={`p-3 rounded-lg border text-xs leading-relaxed ${
+                  uploadFeedback.type === "success"
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                    : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+                }`}>
+                  {uploadFeedback.msg}
                 </div>
               )}
             </div>
 
-            {/* Indexed documents */}
-            <div className="sentinel-card p-5">
-              <div className="flex items-center justify-between mb-4">
+            {/* Indexed Repositories */}
+            <div className="glass-panel p-6 space-y-4">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-400">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
-                  <h2 className="text-sm font-bold text-white uppercase tracking-widest">Indexed Documents</h2>
+                  <div className="w-6 h-6 rounded-md bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <ellipse cx="12" cy="5" rx="9" ry="3" />
+                      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+                    </svg>
+                  </div>
+                  <h2 className="text-xs font-bold tracking-widest text-zinc-300 uppercase">Indexed Documents</h2>
                 </div>
-                <button onClick={fetchDocuments} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+                <button
+                  onClick={fetchDocuments}
+                  className="p-1.5 rounded-md hover:bg-white/[0.06] text-zinc-400 hover:text-white transition-colors"
+                  title="Refresh corpus list"
+                >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
                     <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
                   </svg>
                 </button>
               </div>
+
               {documents.length === 0 ? (
-                <p className="text-xs text-zinc-600 text-center py-4">No documents indexed yet</p>
+                <div className="py-8 text-center text-zinc-400 text-xs">
+                  No documents in vector database yet. Upload a corporate policy or research file above.
+                </div>
               ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {documents.map((doc) => (
-                    <div key={doc.filename} className="flex items-center justify-between gap-2 px-3 py-2 bg-zinc-900/80 border border-zinc-800 rounded-lg group">
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium text-zinc-300 truncate">{doc.filename}</p>
-                        <p className="text-xs text-zinc-600">{doc.chunk_count} chunks</p>
+                    <div
+                      key={doc.filename}
+                      className="group flex items-center justify-between p-3 rounded-lg bg-zinc-950/50 border border-white/[0.05] hover:border-white/[0.12] transition-all"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <p className="text-xs font-semibold text-zinc-200 truncate">{doc.filename}</p>
+                        <p className="text-[10px] text-zinc-400 mt-0.5">SHA-256 chunked & embedded</p>
                       </div>
-                      <button onClick={() => handleDeleteDoc(doc.filename)} className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all">
+                      <button
+                        onClick={() => handleDeleteDocument(doc.filename)}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 transition-all"
+                        title="Delete document and vector embeddings"
+                      >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                          <path d="M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
                         </svg>
                       </button>
                     </div>
@@ -423,70 +497,100 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* Security + Trust legend */}
-            <div className="sentinel-card p-5 space-y-3">
-              <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Score Legend</h3>
-              <div className="space-y-2">
-                {[
-                  { color: "bg-emerald-500", label: "TRUSTWORTHY", range: "≥ 75%" },
-                  { color: "bg-amber-500", label: "PARTIAL / UNSUPPORTED", range: "50–74%" },
-                  { color: "bg-red-500", label: "CONTRADICTED / HALLUCINATED", range: "< 50%" },
-                ].map(({ color, label, range }) => (
-                  <div key={label} className="flex items-center gap-2 text-xs">
-                    <div className={`w-2 h-2 rounded-full ${color}`} />
-                    <span className="text-zinc-400 flex-1">{label}</span>
-                    <span className="text-zinc-600 font-mono">{range}</span>
-                  </div>
-                ))}
+            {/* Architecture Card */}
+            <div className="glass-panel p-5 space-y-3">
+              <h3 className="text-[11px] font-bold tracking-wider text-zinc-400 uppercase">Trust Evaluation Metrics</h3>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between text-zinc-400">
+                  <span>Retrieval Weight ($w_1$)</span>
+                  <span className="font-mono text-cyan-400 font-semibold">25%</span>
+                </div>
+                <div className="flex items-center justify-between text-zinc-400">
+                  <span>NLI Entailment Weight ($w_2$)</span>
+                  <span className="font-mono text-emerald-400 font-semibold">55%</span>
+                </div>
+                <div className="flex items-center justify-between text-zinc-400">
+                  <span>Faithfulness Weight ($w_3$)</span>
+                  <span className="font-mono text-indigo-400 font-semibold">20%</span>
+                </div>
+                <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[11px] text-zinc-400">
+                  <span>Abstention Threshold</span>
+                  <span className="font-mono text-amber-400 font-semibold">&lt; 0.50</span>
+                </div>
               </div>
             </div>
+
           </div>
 
-          {/* Right Column: Query + Results */}
-          <div className="lg:col-span-3 space-y-4">
-            {/* Query card */}
-            <div className="sentinel-card p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
-                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                <h2 className="text-sm font-bold text-white uppercase tracking-widest">Ask a Question</h2>
-              </div>
-              <textarea
-                rows={3}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleAsk(); }}
-                placeholder="e.g. What is the company's refund policy? (Ctrl+Enter to send)"
-                className="w-full bg-zinc-900/80 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-sky-500/70 focus:ring-1 focus:ring-sky-500/30 resize-none transition-all"
-              />
-              <div className="flex items-center justify-between mt-3 gap-3 flex-wrap">
-                <div className="flex items-center gap-2 text-xs text-zinc-500">
-                  <span>Top-K</span>
-                  <select
-                    value={topK}
-                    onChange={(e) => setTopK(Number(e.target.value))}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-zinc-300 text-xs focus:outline-none focus:border-sky-500/50"
-                  >
-                    {[2, 3, 4, 5, 6, 8].map((k) => <option key={k} value={k}>{k}</option>)}
-                  </select>
+          {/* Right Column: Query & Live Verification Engine (8 cols) */}
+          <div className="lg:col-span-8 space-y-6">
+            
+            {/* Query Input Console */}
+            <div className="glass-panel p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-purple-500/10 flex items-center justify-center text-purple-400 border border-purple-500/20">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                  </div>
+                  <h2 className="text-xs font-bold tracking-widest text-zinc-300 uppercase">Sentinel Query Terminal</h2>
                 </div>
+                <span className="text-[10px] text-zinc-400 font-mono">Press Ctrl + Enter to Evaluate</span>
+              </div>
+
+              <div className="relative">
+                <textarea
+                  rows={3}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                      handleExecuteQuery();
+                    }
+                  }}
+                  placeholder="Ask a question against your indexed knowledge base (e.g., 'Who is the CEO and when was the company founded?')..."
+                  className="w-full rounded-xl bg-zinc-950/80 border border-white/[0.08] focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/30 p-4 text-sm text-zinc-100 placeholder-zinc-600 outline-none transition-all resize-none font-sans"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+                <div className="flex items-center gap-3 text-xs text-zinc-400">
+                  <span className="font-medium">Top-K Depth:</span>
+                  <div className="flex items-center gap-1">
+                    {[2, 3, 4, 6].map((k) => (
+                      <button
+                        key={k}
+                        onClick={() => setTopK(k)}
+                        className={`w-7 h-7 rounded-md font-mono text-xs font-bold transition-all ${
+                          topK === k
+                            ? "bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]"
+                            : "bg-zinc-900 border border-white/[0.06] text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        {k}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <button
-                  onClick={handleAsk}
+                  onClick={handleExecuteQuery}
                   disabled={loading || !query.trim()}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-lg shadow-sky-500/20 hover:shadow-sky-500/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase text-white bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 shadow-[0_0_20px_rgba(6,182,212,0.35)] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
                 >
                   {loading ? (
                     <>
-                      <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                      Analyzing…
+                      <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                      <span>Verifying...</span>
                     </>
                   ) : (
                     <>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                       </svg>
-                      Ask SENTINEL
+                      <span>Analyze & Generate</span>
                     </>
                   )}
                 </button>
@@ -494,170 +598,210 @@ export default function HomePage() {
             </div>
 
             {error && (
-              <div className="sentinel-card border-red-500/40 p-4 text-sm text-red-300 flex items-start gap-3">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0 text-red-400">
-                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                {error}
+              <div className="glass-panel border-rose-500/40 p-5 text-sm text-rose-300 flex items-start gap-3">
+                <span className="text-rose-400 font-bold text-base mt-0.5">✕</span>
+                <div className="space-y-1">
+                  <p className="font-semibold">Query Execution Error</p>
+                  <p className="text-xs text-rose-300/80 leading-relaxed">{error}</p>
+                </div>
               </div>
             )}
 
-            {/* Results */}
-            {result && (
-              <div ref={resultRef} className="space-y-4">
-                {/* Trust + Security header */}
-                <div className={`sentinel-card p-5 ${trustGlow(result.trust_score)}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {verdictBadge(result.is_abstained ? "ABSTAINED" : result.trust_verdict)}
-                      {securityBadge(result.security_action)}
+            {/* Verification Result Card */}
+            {result && verdictTheme && (
+              <div ref={responseRef} className="space-y-6 animate-fadeIn">
+                
+                {/* Composite Trust Score Banner */}
+                <div className={`glass-panel p-6 ${verdictTheme.border} relative overflow-hidden`}>
+                  <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${verdictTheme.badge}`}>
+                        <span>{verdictTheme.icon}</span>
+                        <span>{verdictTheme.label}</span>
+                      </span>
+
+                      {getSecurityBadge(result.security_action)}
+
                       {result.quarantined_chunks_count > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/15 border border-red-500/35 text-red-300">
-                          ⚠ {result.quarantined_chunks_count} chunk{result.quarantined_chunks_count > 1 ? "s" : ""} quarantined
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/10 border border-rose-500/30 text-rose-300">
+                          ⚠ {result.quarantined_chunks_count} Poisoned Chunk Quarantined
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-zinc-600">
-                      {result.provider_used?.toUpperCase()} · {result.model_used}
+
+                    <div className="text-right">
+                      <span className="text-[11px] text-zinc-400 uppercase font-semibold tracking-wider block">Trust Metric</span>
+                      <span className={`text-3xl font-black font-mono tabular-nums ${verdictTheme.text}`}>
+                        {trustPct}%
+                      </span>
                     </div>
                   </div>
-                  <TrustMeter score={result.trust_score} />
+
+                  {/* Trust Progress Bar */}
+                  <div className="h-3 w-full bg-zinc-950/80 rounded-full overflow-hidden p-0.5 border border-white/[0.06]">
+                    <div
+                      className={`h-full rounded-full bg-gradient-to-r ${verdictTheme.meter} transition-all duration-1000 ease-out`}
+                      style={{ width: `${Math.max(trustPct, 4)}%` }}
+                    />
+                  </div>
                 </div>
 
-                {/* Answer */}
-                <div className="sentinel-card p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-400">
-                      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-                    </svg>
-                    <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Answer</h3>
+                {/* Grounded Generated Answer Card */}
+                <div className="glass-panel p-6 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold tracking-widest text-zinc-400 uppercase">
+                      {result.is_abstained ? "Abstention Notice" : "Grounded Model Response"}
+                    </span>
+                    <span className="text-[11px] font-mono text-zinc-400">
+                      {result.provider?.toUpperCase()} · {result.model}
+                    </span>
                   </div>
+
                   {result.is_abstained ? (
-                    <div className="rounded-lg bg-zinc-800/60 border border-zinc-700 p-4 text-sm text-zinc-400 italic">
-                      <span className="text-zinc-500 font-semibold block mb-1">System abstained from answering.</span>
-                      {result.abstention_reason}
+                    <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm leading-relaxed space-y-1">
+                      <p className="font-semibold text-amber-300 flex items-center gap-2">
+                        <span>🛡 Sentinel Abstention Barrier Triggered</span>
+                      </p>
+                      <p className="text-xs text-amber-200/90">{result.abstention_reason}</p>
                     </div>
                   ) : (
-                    <p className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap">{result.answer}</p>
+                    <div className="p-5 rounded-xl bg-zinc-950/60 border border-white/[0.05] text-sm text-zinc-100 leading-relaxed whitespace-pre-wrap font-sans">
+                      {result.answer}
+                    </div>
                   )}
                 </div>
 
-                {/* Trust breakdown */}
-                {result.trust_breakdown && (
-                  <div className="sentinel-card p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-sky-400">
-                        <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" />
-                        <line x1="6" y1="20" x2="6" y2="14" />
-                      </svg>
-                      <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Trust Breakdown</h3>
+                {/* Detailed Breakdown Tabs */}
+                <div className="glass-panel p-6 space-y-5">
+                  <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+                    <div className="flex gap-2">
+                      {[
+                        { id: "evidence", label: `Retrieved Evidence (${result.retrieved_chunks?.length || 0})` },
+                        { id: "claims", label: `NLI Atomic Claims (${result.nli_claims?.length || 0})` },
+                        { id: "telemetry", label: "Pipeline Telemetry" },
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => setActiveTab(t.id as any)}
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            activeTab === t.id
+                              ? "bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 shadow-sm"
+                              : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
                     </div>
-                    <div className="space-y-2.5">
-                      <BreakdownBar label="Retrieval Confidence" value={result.trust_breakdown.retrieval_confidence} color="bg-sky-500" />
-                      <BreakdownBar label="Context Relevance" value={result.trust_breakdown.context_relevance} color="bg-indigo-500" />
-                      <BreakdownBar label="NLI Entailment" value={result.trust_breakdown.nli_entailment_ratio} color="bg-emerald-500" />
-                      <BreakdownBar label="Faithfulness" value={result.trust_breakdown.faithfulness_score} color="bg-purple-500" />
-                      <BreakdownBar label="Grounding" value={result.trust_breakdown.grounding_score} color="bg-teal-500" />
-                      {result.trust_breakdown.nli_contradiction_ratio > 0 && (
-                        <BreakdownBar label="Contradiction ⚠" value={result.trust_breakdown.nli_contradiction_ratio} color="bg-red-500" />
+                  </div>
+
+                  {/* Tab 1: Retrieved Evidence */}
+                  {activeTab === "evidence" && (
+                    <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                      {result.retrieved_chunks && result.retrieved_chunks.length > 0 ? (
+                        result.retrieved_chunks.map((chunk, idx) => (
+                          <div key={chunk.chunk_id || idx} className="p-4 rounded-xl bg-zinc-950/60 border border-white/[0.05] space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-semibold text-cyan-400 flex items-center gap-2">
+                                <span className="text-zinc-500 font-mono">#{idx + 1}</span>
+                                {chunk.source_filename}
+                                <span className="text-zinc-600 font-mono text-[10px]">chunk {chunk.chunk_index}</span>
+                              </span>
+                              <span className="font-mono text-zinc-400 bg-white/[0.04] px-2 py-0.5 rounded text-[11px]">
+                                Sim: {(chunk.similarity_score * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                            <p className="text-xs text-zinc-300 leading-relaxed font-sans line-clamp-3">
+                              {chunk.text}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-zinc-500 py-4 text-center">No retrieved chunks for this query.</p>
                       )}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* NLI Claims */}
-                {result.nli_claims && result.nli_claims.length > 0 && (
-                  <div className="sentinel-card p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-400">
-                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                      </svg>
-                      <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">NLI Claim Analysis</h3>
-                      <span className="ml-auto text-xs text-zinc-600">{result.nli_claims.length} claims extracted</span>
+                  {/* Tab 2: NLI Atomic Claims */}
+                  {activeTab === "claims" && (
+                    <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                      {result.nli_claims && result.nli_claims.length > 0 ? (
+                        result.nli_claims.map((claim, idx) => {
+                          const isEntailed = claim.verdict === "ENTAILED";
+                          const isContradiction = claim.verdict === "CONTRADICTION";
+                          return (
+                            <div
+                              key={idx}
+                              className="flex items-start gap-3 p-3.5 rounded-xl bg-zinc-950/60 border border-white/[0.05]"
+                            >
+                              <span
+                                className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold tracking-wider shrink-0 mt-0.5 border ${
+                                  isEntailed
+                                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                                    : isContradiction
+                                    ? "bg-rose-500/15 border-rose-500/30 text-rose-300"
+                                    : "bg-zinc-500/15 border-zinc-500/30 text-zinc-400"
+                                }`}
+                              >
+                                {claim.verdict}
+                              </span>
+                              <p className="text-xs text-zinc-200 leading-relaxed flex-1">
+                                {claim.claim}
+                              </p>
+                              <span className="text-[11px] font-mono text-zinc-500 shrink-0">
+                                {Math.round(claim.confidence * 100)}%
+                              </span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-xs text-zinc-500 py-4 text-center">No atomic claims were extracted.</p>
+                      )}
                     </div>
-                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                      {result.nli_claims.map((claim, i) => (
-                        <div key={i} className="flex items-start gap-3 px-3 py-2.5 bg-zinc-900/80 border border-zinc-800 rounded-lg">
-                          <span className={`text-xs font-bold mt-0.5 shrink-0 w-16 ${nliVerdictColor(claim.verdict)}`}>{claim.verdict}</span>
-                          <p className="text-xs text-zinc-400 leading-relaxed flex-1">{claim.claim}</p>
-                          <span className="text-xs text-zinc-600 tabular-nums shrink-0">{Math.round(claim.confidence * 100)}%</span>
+                  )}
+
+                  {/* Tab 3: Telemetry */}
+                  {activeTab === "telemetry" && result.telemetry && (
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-1">
+                      {[
+                        { label: "Input Scan", val: result.telemetry.input_scan_latency_ms },
+                        { label: "Retrieval", val: result.telemetry.retrieval_latency_ms },
+                        { label: "LLM Gen", val: result.telemetry.generation_latency_ms },
+                        { label: "Trust Eval", val: result.telemetry.trust_eval_latency_ms },
+                        { label: "Total E2E", val: result.telemetry.total_latency_ms, highlight: true },
+                      ].map((item) => (
+                        <div
+                          key={item.label}
+                          className={`p-3.5 rounded-xl border text-center ${
+                            item.highlight
+                              ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-300"
+                              : "bg-zinc-950/60 border-white/[0.05] text-zinc-300"
+                          }`}
+                        >
+                          <p className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider">{item.label}</p>
+                          <p className="text-base font-extrabold font-mono mt-1">
+                            {item.val !== undefined ? `${item.val.toFixed(0)} ms` : "—"}
+                          </p>
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Retrieved chunks */}
-                {result.retrieved_chunks && result.retrieved_chunks.length > 0 && (
-                  <div className="sentinel-card p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-400">
-                        <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-                      </svg>
-                      <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Retrieved Context</h3>
-                      <span className="ml-auto text-xs text-zinc-600">{result.retrieved_chunks.length} chunks</span>
-                    </div>
-                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                      {result.retrieved_chunks.map((chunk, i) => (
-                        <div key={chunk.chunk_id} className="px-3 py-2.5 bg-zinc-900/80 border border-zinc-800 rounded-lg">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-zinc-600">#{i + 1}</span>
-                              <span className="text-xs text-sky-400 font-medium">{chunk.source_filename}</span>
-                              <span className="text-xs text-zinc-600">chunk {chunk.chunk_index}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <div className="h-1.5 w-16 bg-zinc-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-sky-500/70 rounded-full" style={{ width: `${Math.round(chunk.similarity_score * 100)}%` }} />
-                              </div>
-                              <span className="text-xs text-zinc-500 tabular-nums">{(chunk.similarity_score * 100).toFixed(1)}%</span>
-                            </div>
-                          </div>
-                          <p className="text-xs text-zinc-500 leading-relaxed line-clamp-2">{chunk.text_snippet}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                </div>
 
-                {/* Latency telemetry */}
-                {result.telemetry && (
-                  <div className="sentinel-card p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400">
-                        <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-                      </svg>
-                      <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Pipeline Latency</h3>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <LatencyBadge label="Input Scan" ms={result.telemetry.input_scan_latency_ms} />
-                      <LatencyBadge label="Retrieval" ms={result.telemetry.retrieval_latency_ms} />
-                      <LatencyBadge label="Generation" ms={result.telemetry.generation_latency_ms} />
-                      <LatencyBadge label="Trust Eval" ms={result.telemetry.trust_eval_latency_ms} />
-                      <div className="flex flex-col items-center gap-1 px-3 py-2 bg-sky-500/10 border border-sky-500/30 rounded-lg">
-                        <span className="text-xs text-sky-500">Total</span>
-                        <span className="text-sm font-black text-sky-400 tabular-nums">{result.telemetry.total_latency_ms?.toFixed(0)}ms</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
+
           </div>
+
         </div>
+
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-zinc-900 mt-12 py-6">
-        <div className="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-4">
-          <p className="text-xs text-zinc-700">
-            SENTINEL Phase 4 · Built by Bhumika · Adhya · Anwesha · Sharad
-          </p>
-          <p className="text-xs text-zinc-700 font-mono">
-            FastAPI + ChromaDB + MiniLM + DeBERTa NLI + Gemini
-          </p>
-        </div>
+      {/* Cyber Footer */}
+      <footer className="border-t border-white/[0.06] mt-20 py-8 text-center text-xs text-zinc-600">
+        <p>SENTINEL Phase 4 · High-Assurance RAG & Trust Evaluation Engine</p>
+        <p className="mt-1 font-mono text-[11px] text-zinc-700">MiniLM · ChromaDB · DeBERTa-v3 NLI · Gemini 3.1 Flash</p>
       </footer>
     </div>
   );
