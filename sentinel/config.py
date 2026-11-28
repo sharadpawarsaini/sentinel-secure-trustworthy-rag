@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     trust_threshold_low: float = Field(default=0.50, alias="TRUST_THRESHOLD_LOW")
     security_risk_threshold: float = Field(default=0.70, alias="SECURITY_RISK_THRESHOLD")
 
+    # Low-memory mode (recommended for cloud free tiers with <= 512MB RAM such as Render Free)
+    low_memory_mode: bool = Field(default=False, alias="LOW_MEMORY_MODE")
+
 
 # Global settings singleton
 settings = Settings()

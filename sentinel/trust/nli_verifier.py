@@ -7,8 +7,8 @@ Owned by: Anwesha (Trust, Hallucination and NLI Engineer)
 
 from typing import List, Dict, Any, Optional, Tuple
 from pydantic import BaseModel, Field
-import torch
 
+from sentinel.config import settings
 from sentinel.rag.vector_store import RetrievedChunk
 
 
@@ -44,7 +44,7 @@ class NLIVerifier:
         model_name: Optional[str] = None,
         contra_threshold: float = 0.55,
         entail_threshold: float = 0.50,
-        use_mock: bool = False
+        use_mock: Optional[bool] = None
     ):
         """Initialize NLI verifier.
 
@@ -53,11 +53,12 @@ class NLIVerifier:
             contra_threshold: Threshold above which a claim is deemed CONTRADICTED.
             entail_threshold: Threshold above which a claim is deemed ENTAILED.
             use_mock: If True, uses deterministic lexical inference for instant testing.
+                Defaults to settings.low_memory_mode when None.
         """
         self.model_name = model_name or self.DEFAULT_MODEL
         self.contra_threshold = contra_threshold
         self.entail_threshold = entail_threshold
-        self.use_mock = use_mock
+        self.use_mock = settings.low_memory_mode if use_mock is None else use_mock
         self._model = None
         self._tokenizer = None
 
@@ -65,6 +66,7 @@ class NLIVerifier:
         """Lazy load HuggingFace CrossEncoder on demand."""
         if self._model is None and not self.use_mock:
             try:
+                import torch
                 from transformers import AutoTokenizer, AutoModelForSequenceClassification
                 device = "cuda" if torch.cuda.is_available() else "cpu"
                 self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
@@ -143,6 +145,7 @@ class NLIVerifier:
             if self.use_mock or self._model is None:
                 p_entail, p_neutral, p_contra = self._heuristic_nli(premise, hypothesis)
             else:
+                import torch
                 # Run neural CrossEncoder forward pass
                 inputs = self._tokenizer(
                     premise,

@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: sentinel-backend-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn sentinel.backend.api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: LOW_MEMORY_MODE
+        value: "true"
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: LLM_MODEL
+        value: gemini-2.5-flash
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: TRUST_THRESHOLD_HIGH
+        value: "0.75"
+      - key: TRUST_THRESHOLD_LOW
+        value: "0.50"
+      - key: SECURITY_RISK_THRESHOLD
+        value: "0.70"
