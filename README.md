@@ -287,14 +287,14 @@ gantt
                                   MAIN
 ```
 
-### Team Responsibility Matrix
+### Team Responsibility & Folder Ownership Matrix
 
-| Member | Focus Domain | Git Branch | Module Path | Core Deliverables |
+| Member | Focus Domain | Git Branch | Owned Folders & Files | Core Code Deliverables |
 | :--- | :--- | :--- | :--- | :--- |
-| **Bhumika** | **RAG Foundation** | `feature/rag` | `sentinel/rag/` | PDF/DOCX/TXT extraction, chunking, embeddings, ChromaDB interface, semantic retrieval, baseline prompt assembly. |
-| **Adhya** | **Security Layer** | `feature/security` | `sentinel/security/` | Direct injection detector, Base64/Unicode de-obfuscator, document poison scanner, context indirect injection guard, egress filter. |
-| **Anwesha** | **Trust & NLI** | `feature/trust` | `sentinel/trust/` | Retrieval confidence calculation, atomic claim extractor, cross-encoder NLI directional entailment, faithfulness ratio, composite trust scoring. |
-| **Sharad** | **Architecture & Integration** | `feature/mitigation`<br>`feature/integration` | `sentinel/backend/`<br>`sentinel/mitigation/`<br>`sentinel/pipeline/` | FastAPI orchestration, query reformulation, secondary re-retrieval, regeneration, principled abstention, UI coordination, and benchmark harness. |
+| **Bhumika** | **RAG Foundation** | `feature/rag` | `sentinel/rag/` (`document_loader.py`, `chunker.py`, `embedder.py`, `vector_store.py`, `generator.py`)<br>`tests/unit/test_{document_loader,chunker,embedder,vector_store,generator,rag}.py` | PDF/DOCX/TXT extraction, deterministic SHA-256 recursive chunking, `all-MiniLM-L6-v2` & low-memory 384-d embeddings, ChromaDB HNSW cosine store, Gemini/Ollama/Mock LLM adapters. |
+| **Adhya** | **Security Layer** | `feature/security` | `sentinel/security/` (`normalizer.py`, `input_scanner.py`, `document_scanner.py`, `context_scanner.py`, `egress_scanner.py`)<br>`tests/unit/test_security_{input,poison,egress}.py`<br>`tests/integration/test_pipeline_security.py` | NFKD Unicode/zero-width/Base64/Hex de-obfuscator, Barrier 1 direct injection & jailbreak guard, document poisoning scanner, Barrier 3 context quarantine, Barrier 6 credential & beacon redactor. |
+| **Anwesha** | **Trust & NLI** | `feature/trust` | `sentinel/trust/` (`claim_extractor.py`, `confidence_scorer.py`, `nli_verifier.py`, `composite_scorer.py`)<br>`tests/unit/test_trust_{nli,scorer}.py`<br>`tests/integration/test_pipeline_trust.py` | Atomic propositional claim decomposition, exponential retrieval confidence decay, `nli-deberta-v3-small` + heuristic NLI verifier, weighted Composite Trust Score & decision gate. |
+| **Sharad** | **Architecture, Mitigation, API & UI** | `feature/mitigation`<br>`feature/integration` | `sentinel/pipeline.py`, `sentinel/config.py`<br>`sentinel/mitigation/` (`reformulator.py`, `abstention.py`)<br>`sentinel/backend/` (`api.py`, `schemas.py`, `audit.py`)<br>`frontend/src/app/` (`page.tsx`, `admin/page.tsx`)<br>`scripts/`, `tests/unit/test_{api,mitigation}.py`, `tests/integration/test_edge_cases.py` | 6-barrier closed-loop orchestrator, query reformulation & principled abstention engine, FastAPI REST API & audit telemetry, Next.js cyber-security portal (6-barrier radar, claim matrix, sandbox), Vercel/Render deployment & PDF reports. |
 
 ---
 

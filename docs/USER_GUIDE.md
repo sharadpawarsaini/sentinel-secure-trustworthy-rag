@@ -125,3 +125,14 @@ Navigate to `/admin` to inspect live system durability:
 .\.venv\Scripts\pytest.exe -v
 ```
 All **56 unit and integration tests** (including `tests/integration/test_edge_cases.py`) verify every barrier, API error boundary, and low-memory fallback.
+
+---
+
+## 7. Team Work Distribution & Folder Ownership (4 Members)
+
+| Member | Role | Owned Folders & Key Files | What They Built |
+| :--- | :--- | :--- | :--- |
+| **Bhumika** | **RAG Foundation** | `sentinel/rag/` (`document_loader.py`, `chunker.py`, `embedder.py`, `vector_store.py`, `generator.py`) + 6 RAG test files | Document extraction (PDF/DOCX/TXT), deterministic chunking, embeddings, ChromaDB vector store, and LLM clients. |
+| **Adhya** | **Security Engine** | `sentinel/security/` (`normalizer.py`, `input_scanner.py`, `document_scanner.py`, `context_scanner.py`, `egress_scanner.py`) + 4 security test files | Input de-obfuscation & injection blocking, upload poison scanning, context quarantine, and egress secret/beacon redaction. |
+| **Anwesha** | **Trust & NLI** | `sentinel/trust/` (`claim_extractor.py`, `confidence_scorer.py`, `nli_verifier.py`, `composite_scorer.py`) + 3 trust test files | Atomic claim extraction, retrieval confidence decay, cross-encoder NLI entailment, and Composite Trust Score gate. |
+| **Sharad** | **Architecture, Mitigation, API & UI** | `sentinel/pipeline.py`, `sentinel/config.py`, `sentinel/mitigation/`, `sentinel/backend/`, `frontend/src/app/`, `scripts/` + API/edge-case tests | 6-barrier orchestrator, query reformulation, principled abstention, FastAPI backend, Next.js portal (`/`, `/admin`), and deployment. |
