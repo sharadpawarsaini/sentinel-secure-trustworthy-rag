@@ -44,18 +44,19 @@ Below is an authentic visual preview of the operational SENTINEL web portal in a
 
 ---
 
-## 🛠️ Executive Admin Observability Console (Phase 2)
+## 🛠️ Executive Admin Observability Console (Phase 2 & Phase 4)
 
-SENTINEL features a specialized, high-security **Admin Observability Console** accessible at `/admin`. Exclusively tailored for Phase 2 baseline telemetry, the console provides system administrators and researchers with end-to-end transparency over baseline RAG operations:
+SENTINEL features a specialized, high-security **Admin Observability Console** accessible at `/admin`. Fully updated with Phase 4 closed-loop telemetry and multi-barrier defense diagnostics, the console provides system administrators and researchers with end-to-end transparency over both baseline and security/trust operations:
 
 <p align="center">
   <img src="docs/assets/admin_panel_preview.png" alt="SENTINEL Executive Admin Observability Console" width="100%" />
 </p>
 
 ### Admin Observability Capabilities
-- **Real-Time KPI Dashboard**: Live tracking of total indexed chunks across ChromaDB, active generation engines (`codellama:latest` / `mock-baseline-llm`), unique knowledge documents, and roundtrip retrieval-to-synthesis latencies.
-- **Query Transaction Audit Trail**: Thread-safe circular telemetry buffer capturing timestamped query prompts, top-$K$ parameters, maximum cosine similarity scores, execution latencies, and HTTP response codes.
-- **Deep Query Inspection Modal**: Full modal inspector detailing the exact prompt assembly and all retrieved provenance chunks cited during synthesis.
+- **Real-Time KPI Dashboard**: Live tracking of total indexed chunks across ChromaDB, active generation engines (`gemini-2.5-flash`, `llama3:8b`, `codellama`, `mock`), unique knowledge documents, and roundtrip retrieval-to-synthesis latencies.
+- **Phase 4 Closed-Loop Security & Trust Telemetry**: Live breakdown of input security verdicts, quarantined poisoned chunks, claim-level NLI entailment distribution, composite trust scores, and automated mitigation/abstention events.
+- **Query Transaction Audit Trail**: Thread-safe circular telemetry buffer capturing timestamped query prompts, top-$K$ parameters, maximum cosine similarity scores, execution latencies, pipeline modes (`BASELINE_RAG` vs `SENTINEL_CLOSED_LOOP`), and HTTP response codes.
+- **Deep Query Inspection Modal**: Full modal inspector detailing the exact prompt assembly, retrieved provenance chunks, claim verification tables, and security barrier audit flags.
 - **Corpus & Chunk Explorer**: Direct vector collection browser allowing document-level filtering, chunk coordinate viewing, and raw text chunk inspection directly from the persistent HNSW index.
 - **System Health & Hardware Diagnostics**: Live monitoring of the FastAPI runtime, embedding dimension validation (384-d), vector store path verification, and real-time inference model health checks.
 - **Audit Telemetry Log Export**: One-click JSON export of all logged query transactions for archival and downstream research analysis.
@@ -64,7 +65,7 @@ SENTINEL features a specialized, high-security **Admin Observability Console** a
 
 ## 📊 Automated Test Suite Results (100% Passing)
 
-Every component is independently tested and verified through automated test suites in pytest. All 26 unit and integration tests are passing with zero failures:
+Every component across all 4 engineering phases is comprehensively tested and verified through automated test suites in pytest. All 51 unit and integration tests are passing with zero failures:
 
 <p align="center">
   <img src="docs/assets/test_coverage_chart.png" alt="SENTINEL Test Suite Results" width="100%" />
@@ -75,16 +76,24 @@ Every component is independently tested and verified through automated test suit
 
 ### Detailed Component Verification Matrix
 
-| Component | Test File | Verified Capabilities | Status |
-| :--- | :--- | :--- | :--- |
-| **2.2: Document Loader** | [`tests/unit/test_document_loader.py`](tests/unit/test_document_loader.py) | PDF, DOCX, TXT extraction, byte streams, carriage return cleaning, null-byte stripping, metadata preservation. | **5 / 5 Passed** |
-| **2.3: Deterministic Chunker** | [`tests/unit/test_chunker.py`](tests/unit/test_chunker.py) | Recursive splitting (`\n\n`, `\n`, sentence delimiters), overlap preservation, deterministic SHA-256 chunk IDs, offset tracking. | **5 / 5 Passed** |
-| **2.4: Dense Embedder** | [`tests/unit/test_embedder.py`](tests/unit/test_embedder.py) | Hugging Face `all-MiniLM-L6-v2` 384-d vectors, lazy singleton loading, batch encoding, semantic cosine distance ranking. | **4 / 4 Passed** |
-| **2.5: Persistent Vector Store** | [`tests/unit/test_vector_store.py`](tests/unit/test_vector_store.py) | Embedded ChromaDB persistent store, cosine space, top-$K$ semantic querying, threshold filtering, document deletion, stats. | **3 / 3 Passed** |
-| **2.6: Baseline Generator** | [`tests/unit/test_generator.py`](tests/unit/test_generator.py) | Tagged source prompt assembly, multi-provider LLM adapter (Ollama `codellama`, MockLLM for CI), latency instrumentation. | **4 / 4 Passed** |
-| **2.7: FastAPI REST API** | [`tests/unit/test_api.py`](tests/unit/test_api.py) | `/api/health`, `/api/documents/upload`, `/api/rag/query`, `/api/documents`, `/favicon.ico`, error boundaries. | **4 / 4 Passed** |
-| **2.8: System A Lifecycle** | [`tests/unit/test_rag.py`](tests/unit/test_rag.py) | End-to-end integration test verifying complete unaugmented Baseline RAG pipeline as an immutable control benchmark. | **1 / 1 Passed** |
-| **TOTAL** | **7 Test Modules** | **Full Pipeline Verification** | **26 / 26 Passed (100%)** |
+| Phase | Component | Test File | Verified Capabilities | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Phase 2** | **Document Loader** | [`tests/unit/test_document_loader.py`](tests/unit/test_document_loader.py) | PDF, DOCX, TXT extraction, byte streams, carriage return cleaning, null-byte stripping, metadata preservation. | **5 / 5 Passed** |
+| **Phase 2** | **Deterministic Chunker** | [`tests/unit/test_chunker.py`](tests/unit/test_chunker.py) | Recursive splitting (`\n\n`, `\n`, sentence delimiters), overlap preservation, deterministic SHA-256 chunk IDs, offset tracking. | **5 / 5 Passed** |
+| **Phase 2** | **Dense Embedder** | [`tests/unit/test_embedder.py`](tests/unit/test_embedder.py) | Hugging Face `all-MiniLM-L6-v2` 384-d vectors, lazy singleton loading, batch encoding, semantic cosine distance ranking. | **4 / 4 Passed** |
+| **Phase 2** | **Persistent Vector Store** | [`tests/unit/test_vector_store.py`](tests/unit/test_vector_store.py) | Embedded ChromaDB persistent store, cosine space, top-$K$ semantic querying, threshold filtering, document deletion, stats. | **3 / 3 Passed** |
+| **Phase 2** | **Baseline Generator** | [`tests/unit/test_generator.py`](tests/unit/test_generator.py) | Tagged source prompt assembly, multi-provider LLM adapter (Ollama `llama3:8b`/`codellama`, Gemini Flash, MockLLM for CI), latency instrumentation. | **4 / 4 Passed** |
+| **Phase 2** | **FastAPI REST API** | [`tests/unit/test_api.py`](tests/unit/test_api.py) | `/api/health`, `/api/documents/upload`, `/api/rag/query`, `/api/documents`, `/favicon.ico`, error boundaries. | **4 / 4 Passed** |
+| **Phase 2** | **Baseline Control RAG** | [`tests/unit/test_rag.py`](tests/unit/test_rag.py) | End-to-end integration test verifying complete unaugmented Baseline RAG pipeline as an immutable control benchmark (System A). | **1 / 1 Passed** |
+| **Phase 3** | **Input Security Guard** | [`tests/unit/test_security_input.py`](tests/unit/test_security_input.py) | Base64/Unicode homoglyph canonicalization, jailbreak signature scanning, prompt injection blocking, adversarial prompt defense. | **6 / 6 Passed** |
+| **Phase 3** | **Poison & Context Scanner** | [`tests/unit/test_security_poison.py`](tests/unit/test_security_poison.py) | Document upload poison heuristics, canary extraction, indirect prompt injection scanning over retrieved context chunks, quarantine isolation. | **2 / 2 Passed** |
+| **Phase 3** | **Egress Security Filter** | [`tests/unit/test_security_egress.py`](tests/unit/test_security_egress.py) | Output credential leakage detection, canary token exfiltration checks, system prompt leakage prevention. | **3 / 3 Passed** |
+| **Phase 4** | **Claim Extraction & NLI** | [`tests/unit/test_trust_nli.py`](tests/unit/test_trust_nli.py) | Atomic propositional decomposition, cross-encoder directional entailment/neutral/contradiction evaluation (`cross-encoder/nli-deberta-v3-small`). | **4 / 4 Passed** |
+| **Phase 4** | **Trust Scoring Engine** | [`tests/unit/test_trust_scorer.py`](tests/unit/test_trust_scorer.py) | Exponential retrieval confidence decay, claim-level faithfulness ratio, answer relevance, composite trust classification (High/Medium/Low). | **3 / 3 Passed** |
+| **Phase 4** | **Mitigation & Abstention** | [`tests/unit/test_mitigation.py`](tests/unit/test_mitigation.py) | Adaptive query reformulation, closed-loop re-retrieval, principled abstention when evidence is ungrounded or contradictory. | **3 / 3 Passed** |
+| **Integration** | **Pipeline Security Guard** | [`tests/integration/test_pipeline_security.py`](tests/integration/test_pipeline_security.py) | End-to-end multi-barrier security lifecycle: blocks direct injection and quarantines indirect poisoned context before LLM synthesis. | **2 / 2 Passed** |
+| **Integration** | **Trust & Abstention Lifecycle** | [`tests/integration/test_pipeline_trust.py`](tests/integration/test_pipeline_trust.py) | End-to-end trust verification: grounded generation verification and principled abstention under evidence deficit. | **2 / 2 Passed** |
+| **TOTAL** | **15 Test Modules** | **Full Pipeline Verification (Phases 1-4)** | **51 / 51 Passed (100%)** |
 
 ---
 
@@ -240,14 +249,17 @@ gantt
     ChromaDB Embeddings & Retrieval     :done, p2_2, 2026-09-20, 2d
     Baseline Web API & Control Tests    :done, p2_3, 2026-09-22, 1d
     section Phase 3: Security Layer
-    Input Guard & Obfuscation Decoder   :active, p3_1, 2026-09-23, 3d
-    Context Quarantine & Egress Filter  :p3_2, after p3_1, 3d
-    section Phase 4: Trust & NLI
-    Cross-Encoder Claim Entailment      :p4_1, after p3_2, 4d
-    Composite Trust Scoring Engine      :p4_2, after p4_1, 3d
-    section Phase 5: Mitigation Loop
-    Query Reformulation & Re-retrieval  :p5_1, after p4_2, 3d
-    Principled Abstention & Pipeline    :p5_2, after p5_1, 3d
+    Input Guard & Obfuscation Decoder   :done, p3_1, 2026-09-23, 3d
+    Context Quarantine & Egress Filter  :done, p3_2, 2026-09-26, 3d
+    section Phase 4: Trust & Mitigation
+    Cross-Encoder Claim Entailment      :done, p4_1, 2026-09-29, 4d
+    Composite Trust Scoring Engine      :done, p4_2, 2026-10-03, 3d
+    Query Reformulation & Re-retrieval  :done, p4_3, 2026-10-06, 3d
+    Principled Abstention & Pipeline    :done, p4_4, 2026-10-09, 3d
+    Next.js UI & Claim Matrix Visualizer :done, p4_5, 2026-10-12, 3d
+    section Phase 5: Adaptive Evaluation
+    Stress Testing & Boundary Scenarios :active, p5_1, 2026-10-15, 4d
+    Dynamic Defense Optimization        :p5_2, after p5_1, 3d
     section Phase 6: Research Validation
     Comparative Benchmarks (A, B, C, D) :p6_1, after p5_2, 4d
     Ablations & Paper Reporting         :p6_2, after p6_1, 3d
@@ -296,21 +308,40 @@ cd sentinel-secure-trustworthy-rag
 # Activate virtual environment
 .\.venv\Scripts\activate.ps1
 
-# (Optional) Install dependencies if setting up on a new laptop
+# (Optional) Install Python dependencies
 uv pip install -r requirements.txt
 ```
 
-### 2. Start the Live Server
+### 2. Configure Environment (`.env`)
+Create a `.env` file (copied from `.env.example`):
+```env
+LLM_PROVIDER=gemini       # Options: gemini, ollama, mock
+LLM_MODEL=gemini-2.5-flash
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+### 3. Start the Backend API Server
 ```powershell
 .\.venv\Scripts\uvicorn.exe sentinel.backend.api:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### 3. Open in Browser
-- **Web Portal:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
-- **Admin Console:** [http://127.0.0.1:8000/admin](http://127.0.0.1:8000/admin)
-- **Interactive Swagger Docs:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+### 4. (Optional) Run Next.js Modern Cyber-Security Portal
+For the Next.js glassmorphic user portal with interactive claim matrix visualizer:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Access at: [http://localhost:3000](http://localhost:3000)
 
-### 4. Run the Full Test Suite
+### 5. Open in Browser
+- **FastAPI Web Portal:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- **Admin Observability Console:** [http://127.0.0.1:8000/admin](http://127.0.0.1:8000/admin)
+- **Interactive Swagger Docs:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- **Next.js Frontend Portal:** [http://localhost:3000](http://localhost:3000)
+
+### 6. Run the Full Test Suite
+Execute the 51-test automated suite across all 4 phases:
 ```powershell
 .\.venv\Scripts\pytest.exe -v
 ```
